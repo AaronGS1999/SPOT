@@ -284,9 +284,7 @@ class ResultsPage(QWidget):
             self.dotplot.show_image(folder / "dotplots" / f"{row[ids[0]]}__{row[ids[1]]}.png")
         tree = folder / f"{og}_tree.txt"
         if not tree.is_file():
-            self.tree.clear(
-                f"{og} has no gene tree (OrthoFinder builds trees only for orthogroups of 4 or more)"
-            )
+            self.tree.clear(f"{og} has no gene tree")
             return
         model = self.sequences.model
         id_col, sp_col = model.column("id"), model.column("species")
