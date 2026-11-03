@@ -160,9 +160,10 @@ def align(config: Config, workdir: Path, progress: Progress = silent) -> Path:
     threads = str(config.n_threads)
     if _fresh(out, workdir / "syri.stamp.json", syri_stamp):
         log.info("reusing %s", out)
-        progress("align", 2, 2)
+        progress("align", 1, 1)
+        progress("syri", 1, 1)
         return out
-    progress("align", 0, 2)
+    progress("align", 0, 1)
     if _fresh(paf, workdir / "genomes.stamp.json", paf_stamp):
         log.info("reusing %s", paf)
     else:
@@ -173,7 +174,8 @@ def align(config: Config, workdir: Path, progress: Progress = silent) -> Path:
             cwd=workdir,
         )
         (workdir / "genomes.stamp.json").write_text(json.dumps(paf_stamp, indent=2))
-    progress("align", 1, 2)
+    progress("align", 1, 1)
+    progress("syri", 0, 1)
     if _fresh(out, workdir / "syri.stamp.json", syri_stamp):
         log.info("reusing %s", out)
     else:
@@ -200,7 +202,7 @@ def align(config: Config, workdir: Path, progress: Progress = silent) -> Path:
         if not out.is_file():
             raise InputError(f"SyRI finished without writing {out}")
         (workdir / "syri.stamp.json").write_text(json.dumps(syri_stamp, indent=2))
-    progress("align", 2, 2)
+    progress("syri", 1, 1)
     return out
 
 

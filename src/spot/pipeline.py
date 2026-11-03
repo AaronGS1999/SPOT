@@ -80,11 +80,12 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None, progress: Pr
     )
     locations = cp.stage("locate", species_key, lambda: locate(runs, config.species, sequences, genomes))
     progress("locate", 1, 1)
-    progress("align", 0, 1)
 
     syri_out = config.syri_out or syri.align(config, config.outdir / "genome", progress)
     alignments, blocks = syri.read(syri_out)
-    progress("align", 1, 1)
+    if config.syri_out is not None:  # an existing alignment: both steps are done
+        progress("align", 1, 1)
+    progress("syri", 1, 1)
     homologous = homology(config, alignments)
     order = sorted(homologous, key=lambda p: (natural_key(p[0]), natural_key(p[1])))
     log.info("homologous chromosomes: %s", ", ".join(f"{r}-{q}" for r, q in order))

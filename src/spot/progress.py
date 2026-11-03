@@ -14,7 +14,7 @@ from collections.abc import Callable
 
 Progress = Callable[[str, int, int], None]
 PREFIX = "@progress"
-STAGES = ("locate", "align", "test", "validate", "export", "dotplots", "plots")
+STAGES = ("locate", "align", "syri", "test", "validate", "export", "dotplots", "plots")
 
 _log = logging.getLogger("spot.progress")
 

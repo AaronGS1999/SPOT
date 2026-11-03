@@ -28,10 +28,10 @@ from PySide6.QtWidgets import (
 
 from ..progress import STAGES, parse
 
-STEP_LABELS = {("align", 0, 2): "minimap2", ("align", 1, 2): "SyRI"}
 STAGE_LABELS = {
     "locate": "Locate sequences",
-    "align": "Genome alignment (SyRI)",
+    "align": "Genome alignment (minimap2)",
+    "syri": "Synteny (SyRI)",
     "test": "Positional test",
     "validate": "Flank validation (BLASTN)",
     "export": "Write results",
@@ -80,7 +80,7 @@ class RunPage(QWidget):
         self._killer = QTimer(self)
         self._killer.setSingleShot(True)
         self._killer.timeout.connect(self._kill)
-        self._stage, self._step, self._since = "", "", 0.0
+        self._stage, self._since = "", 0.0
         self._clock = QTimer(self)
         self._clock.setInterval(1000)
         self._clock.timeout.connect(self._tick)
@@ -154,16 +154,14 @@ class RunPage(QWidget):
         if not finished:
             if stage != self._stage:
                 self._stage, self._since = stage, time.monotonic()
-            self._step = STEP_LABELS.get((stage, done, total), "")
             self._tick()
 
     def _tick(self) -> None:
         if self.process is None or not self._stage:
             return
         seconds = int(time.monotonic() - self._since)
-        step = f" ({self._step})" if self._step else ""
         self.status.setText(
-            f"{STAGE_LABELS.get(self._stage, self._stage)}{step}… {seconds // 60}:{seconds % 60:02d}"
+            f"{STAGE_LABELS.get(self._stage, self._stage)}… {seconds // 60}:{seconds % 60:02d}"
         )
 
     def _done(self, code: int, status: QProcess.ExitStatus) -> None:
