@@ -19,12 +19,12 @@ for y, color in ((360, (229, 234, 240)), (664, (160, 178, 199))):
 # syntenic link (band) between the two loci
 link = Image.new("RGBA", (S, S), (0, 0, 0, 0))
 ld = ImageDraw.Draw(link)
-ld.polygon([(470, 392), (566, 392), (640, 632), (544, 632)], fill=(193, 18, 31, 120))
+ld.polygon([(470, 392), (566, 392), (640, 632), (544, 632)], fill=(60, 179, 94, 150))
 img = Image.alpha_composite(img, link)
 d = ImageDraw.Draw(img)
 # loci
 for cx, cy in ((518, 360), (592, 664)):
-    d.ellipse([cx - 58, cy - 58, cx + 58, cy + 58], fill=(193, 18, 31), outline=(255, 255, 255), width=12)
+    d.ellipse([cx - 58, cy - 58, cx + 58, cy + 58], fill=(60, 179, 94), outline=(255, 255, 255), width=12)
 out.parent.mkdir(parents=True, exist_ok=True)
 img.save(out)
 print(out)
