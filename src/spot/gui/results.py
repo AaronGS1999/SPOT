@@ -6,6 +6,7 @@ import csv
 from pathlib import Path
 from typing import Any
 
+import yaml
 from PySide6.QtCore import (
     QAbstractTableModel,
     QModelIndex,
@@ -29,6 +30,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from .tree import TreeView
 
 Index = QModelIndex | QPersistentModelIndex
 
@@ -185,15 +188,21 @@ class ResultsPage(QWidget):
         fl.addWidget(self.figure_choice)
         fl.addWidget(self.figure, 1)
         self.dotplot = ImagePanel()
-        self.tree = QPlainTextEdit()
-        self.tree.setReadOnly(True)
-        self.tree.setMaximumHeight(110)
-        side = QWidget()
-        sl = QVBoxLayout(side)
-        sl.addWidget(QLabel("Dotplot of the selected pair"))
-        sl.addWidget(self.dotplot, 1)
-        sl.addWidget(QLabel("Gene tree of its orthogroup"))
-        sl.addWidget(self.tree)
+        self.tree = TreeView()
+        dot_box = QWidget()
+        dl = QVBoxLayout(dot_box)
+        dl.setContentsMargins(0, 0, 0, 0)
+        dl.addWidget(QLabel("Dotplot of the selected pair"))
+        dl.addWidget(self.dotplot, 1)
+        tree_box = QWidget()
+        tl = QVBoxLayout(tree_box)
+        tl.setContentsMargins(0, 0, 0, 0)
+        tl.addWidget(QLabel("Gene tree of its orthogroup"))
+        tl.addWidget(self.tree, 1)
+        side = QSplitter(Qt.Orientation.Vertical)
+        side.addWidget(dot_box)
+        side.addWidget(tree_box)
+        side.setSizes([400, 500])
         pairs_split = QSplitter()
         pairs_split.addWidget(self.pairs)
         pairs_split.addWidget(side)
@@ -211,6 +220,17 @@ class ResultsPage(QWidget):
 
     def open(self, outdir: Path | None) -> None:
         self.outdir = outdir
+        self.colors: dict[str, str] = {}
+        run_yaml = outdir / "run.yaml" if outdir else None
+        if run_yaml is not None and run_yaml.is_file():
+            try:
+                cfg = yaml.safe_load(run_yaml.read_text(encoding="utf-8")) or {}
+                figures = cfg.get("figures") or {}
+                for role in ("reference", "query"):
+                    if cfg.get(role) and figures.get(role):
+                        self.colors[cfg[role]] = figures[role]
+            except (OSError, yaml.YAMLError):
+                self.colors = {}
         self.run.blockSignals(True)
         self.run.clear()
         runs = []
@@ -263,7 +283,21 @@ class ResultsPage(QWidget):
         if len(ids) == 2:
             self.dotplot.show_image(folder / "dotplots" / f"{row[ids[0]]}__{row[ids[1]]}.png")
         tree = folder / f"{og}_tree.txt"
-        self.tree.setPlainText(tree.read_text(encoding="utf-8") if tree.is_file() else "no gene tree")
+        if not tree.is_file():
+            self.tree.clear(
+                f"{og} has no gene tree (OrthoFinder builds trees only for orthogroups of 4 or more)"
+            )
+            return
+        model = self.sequences.model
+        id_col, sp_col = model.column("id"), model.column("species")
+        species_of = {r[id_col]: r[sp_col] for r in model.rows} if id_col >= 0 and sp_col >= 0 else {}
+        self.tree.show_tree(
+            tree.read_text(encoding="utf-8"),
+            species_of,
+            self.colors,
+            {row[k] for k in ids},
+            f"{og}, highlighted: {' and '.join(row[k] for k in ids)}",
+        )
 
     def _open_folder(self) -> None:
         if self.outdir:

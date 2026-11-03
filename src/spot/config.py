@@ -108,6 +108,23 @@ class Dotplots(_Section):
     genome: bool = _f(True, "a whole-genome dotplot of the SyRI alignments")
 
 
+HEX_COLOR = r"^#[0-9A-Fa-f]{6}$"
+
+
+def _color(default: str, text: str) -> Any:
+    return Field(default, description=text, pattern=HEX_COLOR, json_schema_extra={"color": True})
+
+
+class Figures(_Section):
+    reference: str = _color("#3A3A3A", "reference species: chromosome lines and Venn circle")
+    query: str = _color("#8C8C8C", "query species: chromosome lines and Venn circle")
+    syntenic: str = _color("#DCDCDC", "syntenic blocks (SYN)")
+    inversion: str = _color("#F4B97A", "inversions (INV)")
+    translocation: str = _color("#B9B3E0", "translocations (TRANS, INVTR)")
+    duplication: str = _color("#9CCBE8", "duplications (DUP, INVDP)")
+    centromere: str = _color("#FCEFC4", "centromeres (from the BED files)")
+
+
 class Species(_Section):
     label: str
     match: str
@@ -176,6 +193,7 @@ class Config(_Section):
     anchors: Anchors = Field(default_factory=Anchors)
     validation: Validation = Field(default_factory=Validation)
     dotplots: Dotplots = Field(default_factory=Dotplots)
+    figures: Figures = Field(default_factory=Figures)
 
     @field_validator("species")
     @classmethod
@@ -219,6 +237,7 @@ SECTIONS: dict[str, type[BaseModel]] = {
     "anchors": Anchors,
     "validation": Validation,
     "dotplots": Dotplots,
+    "figures": Figures,
 }
 
 

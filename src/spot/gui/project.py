@@ -75,67 +75,125 @@ class SpeciesEditor(QGroupBox):
         self.runs: list[Path] = []
         self.key = QLineEdit()
         self.key.setMaximumWidth(100)
-        self.key.setToolTip("Short name used in tables and file names (e.g. MS)")
         self.label = QLineEdit()
-        self.label.setPlaceholderText("species name for figures, e.g. M. stenopetala")
         self.match = QLineEdit()
-        self.match.setPlaceholderText("MS")
-        self.match.setToolTip(
-            "Start of this species' column names in Orthogroups.tsv (the input FASTA names), e.g. MS for "
-            "MS_NUMT_evento2. A regular expression is also accepted."
-        )
         self.genome = PathEdit("file", "Genome FASTA", FASTA)
-        self.genome.setPlaceholderText("the assembly used in the whole-genome alignment")
         self.centromeres = PathEdit("file", "Centromeres BED", "BED (*.bed);;All files (*)")
-        self.centromeres.setPlaceholderText("optional, only drawn in the synteny figure")
+        self.use_table = QCheckBox("from a table")
         self.coords_table = PathEdit("file", "Coordinate table", "TSV (*.tsv *.txt);;All files (*)")
-        self.coords_table.setPlaceholderText(
-            "optional: id chr start end, when the names carry no coordinates"
-        )
-        self.custom_regex = QCheckBox("custom")
+        self.custom_regex = QCheckBox("custom pattern")
         self.header_regex = QLineEdit(HEADER_REGEX)
-        self.header_regex.setVisible(False)
-        self.custom_regex.toggled.connect(self.header_regex.setVisible)
-        self.detected = ""
+        self.use_lift = QCheckBox("they refer to another assembly")
         self.lift = PathList("Lift files (AGP or split tables, in order)")
-        self.lift.setToolTip(
-            "Only when the coordinates in the sequence names refer to another assembly than the genome, "
-            "e.g. a scaffolding (RagTag AGP) or a split chromosome (split table), applied in order"
-        )
         self.strip_suffix = QLineEdit()
-        self.strip_suffix.setPlaceholderText("removed from lifted names, e.g. _RagTag")
         self.min_identity = QDoubleSpinBox()
         self.min_identity.setRange(0.5, 1.0)
         self.min_identity.setSingleStep(0.005)
         self.min_identity.setDecimals(3)
         self.min_identity.setValue(0.99)
-        self.min_identity.setToolTip("Minimum identity between a sequence and the genome at its coordinates")
         self.status = QLabel()
         self.status.setWordWrap(True)
         self.status.setStyleSheet("color: #8a8a8a")
         form = QFormLayout(self)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        top = QHBoxLayout()
-        top.addWidget(QLabel("key"))
-        top.addWidget(self.key)
-        top.addWidget(QLabel("label"))
-        top.addWidget(self.label, 1)
-        form.addRow(top)
-        form.addRow("column prefix", self.match)
-        form.addRow("genome", self.genome)
-        regex_row = QHBoxLayout()
-        self.regex_note = QLabel("detected from the names")
-        self.regex_note.setStyleSheet("color: #8a8a8a")
-        regex_row.addWidget(self.regex_note, 1)
-        regex_row.addWidget(self.custom_regex)
-        form.addRow("coordinates", regex_row)
-        form.addRow("", self.header_regex)
-        form.addRow("coordinate table", self.coords_table)
-        form.addRow("lift", self.lift)
-        form.addRow("strip suffix", self.strip_suffix)
-        form.addRow("min. identity", self.min_identity)
-        form.addRow("centromeres", self.centromeres)
+        self.form = form
+
+        def row(name: str, widget: QWidget | QHBoxLayout, help_text: str) -> QLabel:
+            label = QLabel(name)
+            label.setToolTip(help_text)
+            if isinstance(widget, QWidget):
+                widget.setToolTip(help_text)
+            form.addRow(label, widget)
+            return label
+
+        names = QHBoxLayout()
+        names.addWidget(self.key)
+        key_help = "Short name of the species in tables, file names and the confirmed-pair columns, e.g. MS."
+        self.key.setToolTip(key_help)
+        label_title = QLabel("name")
+        label_help = "Species name used in the figures, e.g. M. stenopetala (shown in italics)."
+        label_title.setToolTip(label_help)
+        self.label.setToolTip(label_help)
+        names.addWidget(label_title)
+        names.addWidget(self.label, 1)
+        row("key", names, key_help)
+        row(
+            "column prefix",
+            self.match,
+            "Start of this species' column in Orthogroups.tsv, i.e. of its input FASTA name: MS for "
+            "MS_NUMT_evento2.fasta. Filled in by Find runs. A regular expression is also accepted.",
+        )
+        row(
+            "genome",
+            self.genome,
+            "Genome FASTA of this species: the assembly the whole-genome alignment (SyRI) was made on. "
+            "Every sequence is checked against it at its coordinates.",
+        )
+        coords = QHBoxLayout()
+        coords.addWidget(QLabel("from the sequence names"), 1)
+        coords.addWidget(self.custom_regex)
+        coords.addWidget(self.use_table)
+        row(
+            "coordinates",
+            coords,
+            "Where each sequence lies in the genome. By default SPOT reads chr:start-end from the FASTA "
+            "header of each sequence (the format is detected). Use a table only if the headers have no "
+            "coordinates.",
+        )
+        self.regex_label = row(
+            "pattern",
+            self.header_regex,
+            "Regular expression with the named groups chr, start and end, applied to the FASTA header.",
+        )
+        self.table_label = row(
+            "table",
+            self.coords_table,
+            "Tab-separated table with the columns id, chr, start and end (1-based, inclusive), one row "
+            "per sequence. Only needed when the FASTA headers carry no coordinates.",
+        )
+        lift_row = QHBoxLayout()
+        lift_row.addWidget(self.use_lift)
+        lift_row.addStretch()
+        row(
+            "lift",
+            lift_row,
+            "Tick when the coordinates in the headers were taken on another assembly than the genome above "
+            "(for example the original scaffolds before RagTag, or before a chromosome was split).",
+        )
+        self.lift_label = row(
+            "lift files",
+            self.lift,
+            "AGP files (e.g. ragtag.scaffold.agp) or split tables (piece, chromosome, start, end) that turn "
+            "the old coordinates into coordinates of the genome, applied from top to bottom.",
+        )
+        self.strip_label = row(
+            "strip suffix",
+            self.strip_suffix,
+            "Text removed from the end of the lifted chromosome names, e.g. _RagTag (chr1_RagTag -> chr1).",
+        )
+        row(
+            "min. identity",
+            self.min_identity,
+            "Each sequence is compared with the genome at its coordinates (both strands). It is accepted "
+            "when it is identical or at least this similar (0.99 = 99 %); otherwise it is reported as "
+            "sequence_mismatch and left out, because its coordinates cannot be trusted.",
+        )
+        row(
+            "centromeres",
+            self.centromeres,
+            "Optional BED file of centromeres, only drawn in the synteny figure.",
+        )
         form.addRow(self.status)
+        for checkbox, rows in (
+            (self.custom_regex, (self.regex_label,)),
+            (self.use_table, (self.table_label,)),
+            (self.use_lift, (self.lift_label, self.strip_label)),
+        ):
+            checkbox.toggled.connect(lambda on, rows=rows: self._show_rows(rows, on))
+            self._show_rows(rows, False)
+        self.use_lift.toggled.connect(self._timer_start)
+        self.use_table.toggled.connect(self.changed)
+        self.use_lift.toggled.connect(self.changed)
         for w in (self.key, self.label, self.match, self.header_regex, self.strip_suffix):
             w.textChanged.connect(self.changed)
         for p in (self.genome, self.centromeres, self.coords_table):
@@ -154,6 +212,14 @@ class SpeciesEditor(QGroupBox):
         self.lift.changed.connect(self._timer.start)
         self.custom_regex.toggled.connect(self._timer.start)
 
+    def _show_rows(self, labels: tuple[QLabel, ...], on: bool) -> None:
+        for label in labels:
+            self.form.setRowVisible(label, on)
+
+    def _timer_start(self) -> None:
+        if hasattr(self, "_timer"):
+            self._timer.start()
+
     def set_runs(self, runs: list[Path]) -> None:
         self.runs = runs
         self._timer.start()
@@ -170,8 +236,8 @@ class SpeciesEditor(QGroupBox):
             self.match.text().strip(),
             regex,
             self.genome.path(),
-            self.lift.paths(),
-            self.strip_suffix.text().strip() or None,
+            self.lift.paths() if self.use_lift.isChecked() else [],
+            (self.strip_suffix.text().strip() or None) if self.use_lift.isChecked() else None,
         )
         job.signals.done.connect(self._diagnosed)
         self.status.setText("checking the coordinates…")
@@ -189,6 +255,8 @@ class SpeciesEditor(QGroupBox):
         self.centromeres.set_path(data.get("centromeres"))
         coords = data.get("coords", "header")
         self.coords_table.set_path(None if coords in (None, "header") else coords)
+        self.use_table.setChecked(coords not in (None, "header"))
+        self.use_lift.setChecked(bool(data.get("lift") or data.get("strip_suffix")))
         regex = data.get("header_regex")
         self.custom_regex.setChecked(bool(regex))
         self.header_regex.setText(str(regex or HEADER_REGEX))
@@ -200,7 +268,7 @@ class SpeciesEditor(QGroupBox):
         data: dict[str, Any] = {"label": self.label.text().strip(), "match": self.match.text().strip()}
         if self.genome.path():
             data["genome"] = str(self.genome.path())
-        if self.coords_table.path():
+        if self.use_table.isChecked() and self.coords_table.path():
             data["coords"] = str(self.coords_table.path())
         regex = self.header_regex.text().strip()
         if self.custom_regex.isChecked() and regex and regex != HEADER_REGEX:
@@ -209,9 +277,9 @@ class SpeciesEditor(QGroupBox):
             detected = diagnose.detect_header_regex(diagnose.headers(self.runs, self.match.text().strip()))
             if detected and detected != HEADER_REGEX:
                 data["header_regex"] = detected
-        if self.lift.paths():
+        if self.use_lift.isChecked() and self.lift.paths():
             data["lift"] = [str(p) for p in self.lift.paths()]
-        if self.strip_suffix.text().strip():
+        if self.use_lift.isChecked() and self.strip_suffix.text().strip():
             data["strip_suffix"] = self.strip_suffix.text().strip()
         if abs(self.min_identity.value() - 0.99) > 1e-9:
             data["min_identity"] = round(self.min_identity.value(), 4)
@@ -224,11 +292,24 @@ class RunsTable(QTableWidget):
     """OrthoFinder runs found under the root folder: include, name, label, colour, unit."""
 
     changed = Signal()
-    COLUMNS = ("use", "run", "label", "colour", "unit", "results folder")
+    COLUMNS = ("use", "run", "name in figures", "colour", "sequence type", "results folder")
+    HELP = (
+        "Include this OrthoFinder run in the analysis.",
+        "Folder name of the run.",
+        "Title of this run in the figures (Venn diagram, legends), e.g. NUMTs. Empty: the run name.",
+        "Colour of this run in all figures (syntenic orthologs in the Venn diagram, links and dots in the "
+        "synteny figure and the dotplot). auto: a default palette.",
+        "What the sequences are called in the Venn diagram counts, e.g. NUMTs or NUPTs. Empty: sequences.",
+        "OrthoFinder results folder used (the latest Results_* of the run).",
+    )
 
     def __init__(self) -> None:
         super().__init__(0, len(self.COLUMNS))
         self.setHorizontalHeaderLabels(self.COLUMNS)
+        for i, text in enumerate(self.HELP):
+            header_item = self.horizontalHeaderItem(i)
+            if header_item is not None:
+                header_item.setToolTip(text)
         self.verticalHeader().setVisible(False)
         header = self.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -293,7 +374,10 @@ class ProjectPage(QWidget):
         super().__init__()
         # OrthoFinder
         self.root = PathEdit("dir", "OrthoFinder results folder")
-        self.root.setPlaceholderText("folder with one OrthoFinder run per subfolder")
+        self.root.setToolTip(
+            "Folder that holds the OrthoFinder runs, one per subfolder (each with its Results_* folder). "
+            "Find runs lists them; the latest Results_* of each run is used."
+        )
         detect = QPushButton("Find runs")
         detect.clicked.connect(lambda: self.detect(select_all=False))
         self.runs = RunsTable()
@@ -318,7 +402,10 @@ class ProjectPage(QWidget):
         self.threads = QSpinBox()
         self.threads.setRange(0, 512)
         self.threads.setSpecialValueText(f"auto ({performance_cores()})")
-        self.threads.setToolTip("Worker threads; auto = performance cores of this computer")
+        self.threads.setToolTip(
+            "Programs run in parallel (BLASTN searches, Gepard dotplots, minimap2, SyRI). auto uses the "
+            "performance cores of this computer."
+        )
         self.use_syri = QCheckBox("use an existing syri.out")
         self.syri_out = PathEdit("file", "syri.out", "SyRI output (*.out);;All files (*)")
         self.syri_out.setEnabled(False)
@@ -339,6 +426,26 @@ class ProjectPage(QWidget):
         form.addRow("threads", self.threads)
         form.addRow(self.use_syri, self.syri_out)
         form.addRow(self.resume)
+        for widget, text in (
+            (self.reference, "Species whose genome is the reference of the whole-genome alignment."),
+            (self.query, "Species aligned to the reference."),
+            (self.outdir, "Folder where SPOT writes its results; a run can be resumed in the same folder."),
+            (
+                self.use_syri,
+                "Use the syri.out of an alignment already made between these two genomes (reference first) "
+                "instead of aligning them again with minimap2 and SyRI.",
+            ),
+            (self.syri_out, "syri.out made with this reference and query genome."),
+            (
+                self.resume,
+                "Keep the stages a previous run in this folder already finished with the same inputs and "
+                "settings (locating sequences, BLASTN validation, the alignment).",
+            ),
+        ):
+            widget.setToolTip(text)
+            label = form.labelForField(widget)
+            if label is not None:
+                label.setToolTip(text)
         layout = QVBoxLayout(self)
         layout.addWidget(of)
         layout.addLayout(sp_row)

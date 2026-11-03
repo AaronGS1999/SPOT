@@ -24,15 +24,20 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
     QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
     QToolButton,
+    QVBoxLayout,
     QWidget,
 )
 
 from ..config import SYRI_CLASSES
+from .widgets import ColorButton
 
 INT_MAX = 2_000_000_000
 
@@ -184,7 +189,9 @@ class HomologyEditor(Editor):
         self.mode = QComboBox()
         self.mode.addItems(["auto", "manual"])
         self.pairs = QPlainTextEdit()
-        self.pairs.setPlaceholderText("one pair per line: reference_chr query_chr")
+        self.pairs.setToolTip(
+            "One homologous pair per line: reference chromosome, a space, query chromosome."
+        )
         self.pairs.setMaximumHeight(80)
         self.mode.currentTextChanged.connect(self._mode)
         self.mode.currentTextChanged.connect(self.edited)
@@ -214,6 +221,91 @@ class HomologyEditor(Editor):
         self.blockSignals(False)
 
 
+class ColorEditor(Editor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.button = ColorButton()
+        self.button.changed.connect(self.edited)
+        _wrap(self, self.button)
+
+    def value(self) -> str:
+        return self.button.color() or "#000000"
+
+    def set_value(self, value: Any) -> None:
+        self.button.set_color(str(value) if value else None)
+
+
+class OptionsEditor(QWidget):
+    """Extra command-line options of a tool as a two-column table (option, value)."""
+
+    edited = Signal()
+
+    def __init__(self, tool: str) -> None:
+        super().__init__()
+        self.table = QTableWidget(0, 2)
+        self.table.setHorizontalHeaderLabels(["option", "value"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setMaximumHeight(110)
+        self.table.itemChanged.connect(lambda _: self.edited.emit())
+        self.setToolTip(
+            f"Any other {tool} option, written as in its manual without the dash (e.g. max_hsps with "
+            "value 50 gives -max_hsps 50). Leave the value empty for a flag."
+        )
+        add, remove = QToolButton(), QToolButton()
+        add.setText("+")
+        remove.setText("−")
+        add.clicked.connect(self._add)
+        remove.clicked.connect(self._remove)
+        buttons = QVBoxLayout()
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch()
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.table, 1)
+        layout.addLayout(buttons)
+
+    def _add(self) -> None:
+        self.table.insertRow(self.table.rowCount())
+        self.table.editItem(
+            self.table.item(self.table.rowCount() - 1, 0) or self._blank(self.table.rowCount() - 1)
+        )
+
+    def _blank(self, row: int) -> QTableWidgetItem:
+        item = QTableWidgetItem("")
+        self.table.setItem(row, 0, item)
+        return item
+
+    def _remove(self) -> None:
+        rows = sorted({i.row() for i in self.table.selectedIndexes()}, reverse=True)
+        for r in rows or [self.table.rowCount() - 1]:
+            if r >= 0:
+                self.table.removeRow(r)
+        self.edited.emit()
+
+    def options(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for r in range(self.table.rowCount()):
+            key_item, value_item = self.table.item(r, 0), self.table.item(r, 1)
+            key = key_item.text().strip().lstrip("-") if key_item else ""
+            if not key:
+                continue
+            text = value_item.text().strip() if value_item else ""
+            out[key] = True if text == "" else yaml.safe_load(text)
+        return out
+
+    def set_options(self, options: dict[str, Any]) -> None:
+        self.table.blockSignals(True)
+        self.table.setRowCount(0)
+        for key, value in options.items():
+            r = self.table.rowCount()
+            self.table.insertRow(r)
+            self.table.setItem(r, 0, QTableWidgetItem(str(key)))
+            self.table.setItem(r, 1, QTableWidgetItem("" if value is True else str(value)))
+        self.table.blockSignals(False)
+
+
 def _wrap(owner: QWidget, child: QWidget) -> None:
     layout = QHBoxLayout(owner)
     layout.setContentsMargins(0, 0, 0, 0)
@@ -227,6 +319,9 @@ def editor_for(name: str, field: FieldInfo) -> Editor:
         return ClassesEditor()
     if name == "homology":
         return HomologyEditor()
+    extra = field.json_schema_extra
+    if isinstance(extra, dict) and extra.get("color"):
+        return ColorEditor()
     if annotation is bool:
         return BoolEditor()
     if annotation is int:
@@ -310,34 +405,41 @@ class SectionForm(QGroupBox):
                 label.setToolTip(field.description)
             layout.addRow(label, row)
             self.rows[name] = row
-        self.extra: QPlainTextEdit | None = None
+        self.layout_ = layout
+        self.base_title = title
+        self.extra: OptionsEditor | None = None
         if extra_options:
-            self.extra = QPlainTextEdit()
-            self.extra.setPlaceholderText("other options of the tool, one per line, e.g.  max_hsps: 50")
-            self.extra.setMaximumHeight(64)
-            self.extra.textChanged.connect(self.edited)
-            layout.addRow(QLabel("other options"), self.extra)
+            self.extra = OptionsEditor(section)
+            self.extra.edited.connect(self.edited)
+            label = QLabel("other options")
+            label.setToolTip(self.extra.toolTip())
+            layout.addRow(label, self.extra)
 
     def show(self, profile: dict[str, Any], user: dict[str, Any]) -> None:  # type: ignore[override]
         for name, row in self.rows.items():
             row.show_value(profile.get(name), user.get(name), name in user)
         if self.extra is not None:
             known = set(self.rows)
-            extra = {k: v for k, v in user.items() if k not in known}
-            self.extra.blockSignals(True)
-            self.extra.setPlainText(yaml.safe_dump(extra, sort_keys=False).strip() if extra else "")
-            self.extra.blockSignals(False)
+            self.extra.set_options({k: v for k, v in user.items() if k not in known})
         super().show()
+
+    def set_active(self, active: bool, reason: str = "") -> None:
+        """Grey out a section whose settings are not used with the current choices."""
+        self.setEnabled(active)
+        self.setTitle(self.base_title if active else f"{self.base_title}  (not used: {reason})")
+
+    def set_rows_enabled(self, enabled: bool, keep: tuple[str, ...] = ()) -> None:
+        for name, row in self.rows.items():
+            if name not in keep:
+                row.setEnabled(enabled)
+                label = self.layout_.labelForField(row)
+                if label is not None:
+                    label.setEnabled(enabled)
 
     def overrides(self) -> dict[str, Any]:
         out = {name: row.editor.value() for name, row in self.rows.items() if row.user}
-        if self.extra is not None and self.extra.toPlainText().strip():
-            try:
-                extra = yaml.safe_load(self.extra.toPlainText())
-            except yaml.YAMLError:
-                extra = None
-            if isinstance(extra, dict):
-                out.update(extra)
+        if self.extra is not None:
+            out.update(self.extra.options())
         return out
 
 
@@ -345,8 +447,9 @@ SECTION_TITLES: dict[str, tuple[str, bool]] = {
     "anchors": ("Anchors and positional test", False),
     "validation": ("Flank validation (BLASTN)", False),
     "blastn": ("BLASTN", True),
-    "minimap2": ("minimap2 (only when SPOT aligns the genomes)", True),
-    "syri": ("SyRI (only when SPOT aligns the genomes)", True),
-    "gepard": ("Gepard dotplots", True),
     "dotplots": ("Dotplots", False),
+    "gepard": ("Gepard (dotplots of the confirmed pairs)", True),
+    "minimap2": ("minimap2 (whole-genome alignment)", True),
+    "syri": ("SyRI (whole-genome alignment)", True),
+    "figures": ("Figure colours", False),
 }

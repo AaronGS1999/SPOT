@@ -104,6 +104,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self._menus()
         self.project.changed.connect(self._touched)
+        self.project.use_syri.toggled.connect(self.parameters.set_external_alignment)
         self.parameters.changed.connect(self._touched)
         self.runner.check_button.clicked.connect(self.check)
         self.runner.run_button.clicked.connect(self.run)
@@ -154,6 +155,7 @@ class MainWindow(QMainWindow):
     def load(self, data: dict[str, Any]) -> None:
         self.project.load(data)
         self.parameters.load(data)
+        self.parameters.set_external_alignment(self.project.use_syri.isChecked())
         self.results.open(Path(data["outdir"]) if data.get("outdir") else None)
         self.dirty = False
         self._title()
@@ -212,7 +214,7 @@ class MainWindow(QMainWindow):
 
     def _title(self) -> None:
         name = self.path.name if self.path else "untitled"
-        self.setWindowTitle(f"SPOT {__version__} — {name}{' *' if self.dirty else ''}")
+        self.setWindowTitle(f"SPOT {__version__} - {name}{' *' if self.dirty else ''}")
 
     def _may_discard(self) -> bool:
         if not self.dirty:

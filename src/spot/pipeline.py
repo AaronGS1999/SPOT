@@ -163,6 +163,7 @@ def run(config: Config, progress: Progress | None = None) -> Analysis:
         _write_homology(out / "homology.tsv", analysis)
         species = [plots.SpeciesStyle(k, config.species[k].label) for k in (config.reference, config.query)]
         styles = _run_styles(config, analysis.runs)
+        palette = plots.Palette.from_config(config.figures)
         lengths = {k: g.lengths for k, g in analysis.genomes.items()}
         dotplots: list[tuple[Path, Region, Region]] = []
         progress("export", 0, len(analysis.results))
@@ -175,7 +176,7 @@ def run(config: Config, progress: Progress | None = None) -> Analysis:
             folders = list(pool.map(export, analysis.results))
         progress("export", len(analysis.results), len(analysis.results))
         for result, style, folder in zip(analysis.results, styles, folders, strict=True):
-            plots.venn(result, species, style, folder / "venn")
+            plots.venn(result, species, style, folder / "venn", palette)
             if config.dotplots.pairs:
                 dotplots += _dotplot_jobs(result, analysis, folder)
         if dotplots:
@@ -185,7 +186,7 @@ def run(config: Config, progress: Progress | None = None) -> Analysis:
             GepardPlotter(gepard, config.gepard, config.n_threads, progress).plot(dotplots)
         progress("plots", 0, 1)
 
-        plots.venn_panel(analysis.results, species, styles, out / "venn_panel")
+        plots.venn_panel(analysis.results, species, styles, out / "venn_panel", palette)
         centromeres = {k: plots.read_bed(sp.centromeres) for k, sp in config.species.items()}
         plots.synteny(
             analysis.results,
@@ -197,6 +198,7 @@ def run(config: Config, progress: Progress | None = None) -> Analysis:
             lengths,
             centromeres,
             out / "synteny",
+            palette,
         )
         if config.dotplots.genome:
             links = [
@@ -204,7 +206,13 @@ def run(config: Config, progress: Progress | None = None) -> Analysis:
                 for result, style in zip(analysis.results, styles, strict=True)
             ]
             plots.genome_dotplot(
-                analysis.alignments, species, lengths, analysis.homologous, links, out / "genome" / "dotplot"
+                analysis.alignments,
+                species,
+                lengths,
+                analysis.homologous,
+                links,
+                out / "genome" / "dotplot",
+                palette,
             )
         progress("plots", 1, 1)
         _report(analysis)

@@ -42,7 +42,23 @@ class ParametersPage(QWidget):
         layout.addLayout(top)
         layout.addWidget(scroll)
         self._user: dict[str, dict[str, Any]] = {}
+        self._external_alignment = False
         self.profile.currentTextChanged.connect(self._profile_changed)
+        self.changed.connect(self.update_dependencies)
+
+    def set_external_alignment(self, external: bool) -> None:
+        """minimap2 and SyRI settings only matter when SPOT aligns the genomes itself."""
+        self._external_alignment = external
+        self.update_dependencies()
+
+    def update_dependencies(self) -> None:
+        validation = self.forms["validation"].rows["enabled"].editor.value()
+        self.forms["validation"].set_rows_enabled(bool(validation), keep=("enabled",))
+        self.forms["blastn"].set_active(bool(validation), "flank validation is off")
+        pairs = self.forms["dotplots"].rows["pairs"].editor.value()
+        self.forms["gepard"].set_active(bool(pairs), "no dotplots of the pairs")
+        for tool in ("minimap2", "syri"):
+            self.forms[tool].set_active(not self._external_alignment, "an existing syri.out is used")
 
     def _profile_changed(self, name: str) -> None:
         self._user = self.overrides()
@@ -59,6 +75,7 @@ class ParametersPage(QWidget):
         self.description.setText(description)
         for section, form in self.forms.items():
             form.show(settings.get(section, {}), self._user.get(section, {}))
+        self.update_dependencies()
 
     def load(self, data: dict[str, Any]) -> None:
         self._user = {s: dict(data.get(s) or {}) for s in self.forms}
