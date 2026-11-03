@@ -379,13 +379,23 @@ class ProjectPage(QWidget):
             editor.set_runs(paths)
         prefixes = diagnose.column_prefixes(paths)
         empty = [e for e in self.species if not e.match.text().strip()]
-        taken = {e.match.text().strip() for e in self.species}
-        free = [p for p in prefixes if p not in taken]
+        free = [p for p in prefixes if p not in {e.match.text().strip() for e in self.species}]
+        # a species whose name is already typed gets the prefix made of its initials (M. stenopetala -> MS)
+        for editor in list(empty):
+            guess = diagnose.initials(editor.label.text())
+            if guess in free:
+                self._assign(editor, guess)
+                empty.remove(editor)
+                free.remove(guess)
         for editor, prefix in zip(empty, free, strict=False):
-            if editor.key.text().strip() in ("", "SP1", "SP2"):
-                editor.key.setText(prefix)
-            editor.match.setText(prefix)
+            self._assign(editor, prefix)
         self._keys()
+
+    @staticmethod
+    def _assign(editor: SpeciesEditor, prefix: str) -> None:
+        if editor.key.text().strip() in ("", "SP1", "SP2"):
+            editor.key.setText(prefix)
+        editor.match.setText(prefix)
 
     def _keys(self) -> None:
         keys = [k for k in (s.key.text().strip() for s in self.species) if k]

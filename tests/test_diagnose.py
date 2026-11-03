@@ -23,3 +23,8 @@ def test_detects_species_and_coordinates(of_root: Path, tmp_path: Path) -> None:
 
 def test_other_header_formats() -> None:
     assert diagnose.detect_header_regex(["Chr1_100_200 x", "Chr2_5_9"]) != HEADER_REGEX
+
+
+def test_initials() -> None:
+    assert diagnose.initials("M. stenopetala") == "MS"
+    assert diagnose.initials("") == ""
