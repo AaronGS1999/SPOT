@@ -1,0 +1,3 @@
+description: As default, but also anchors on intra-chromosomal rearrangements (TRANS, INVTR, DUP, INVDP) of homologous chromosomes.
+anchors:
+  types: [SYN, INV, TRANS, INVTR, DUP, INVDP]

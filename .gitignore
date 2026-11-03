@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+spot_out/
+.DS_Store
+._*
+.nfs*
+.mypy_cache/
+.spot/
+# never commit data or results
+*.fa
+*.fasta
+*.fna
+*.fai
+*.bam
+*.out
+*.paf
+DATA/
+data/
+spot_out*/

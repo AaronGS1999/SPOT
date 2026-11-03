@@ -1,0 +1,36 @@
+orthofinder:
+  root: data/orthofinder
+  runs:
+    run_a: {label: Run A, color: "#C1121F", unit: NUMTs}
+    run_b: {label: Run B, color: "#1B7F3B", unit: NUPTs}
+
+species:
+  SP1:
+    label: Species one
+    match: "^SP1_"
+    genome: genomes/sp1.fasta
+    centromeres: annotations/sp1_centromeres.bed
+  SP2:
+    label: Species two
+    match: "^SP2_"
+    genome: genomes/sp2.fasta
+    # coordinates in the sequence names refer to an earlier assembly
+    lift:
+      - lift/split.tsv
+      - lift/ragtag.scaffold.agp
+    strip_suffix: _RagTag
+
+reference: SP1
+query: SP2
+profile: default
+outdir: spot_out
+threads: 8
+
+# reuse an existing SyRI run instead of aligning the genomes
+# syri_out: syri/syri.out
+
+# minimap2: {x: asm10}
+# blastn: {evalue: 1e-10, perc_identity: 80}
+# anchors: {types: [SYN, INV], min_syn_frac: 0.1, tol: 2000, tol_frac: 0.1, min_aligned_frac: 0.5}
+# anchors: {homology: [[chr1, Chr1a], [chr1, Chr1b]]}   # fix the homologous pairs by hand
+# validation: {mode: colinear, reciprocal: true, window: 10000, min_frac: 0.2, min_bp: 1000, max_offset: 500}
