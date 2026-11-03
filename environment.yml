@@ -10,7 +10,8 @@ dependencies:
   - gepard=2.1
   - pydantic>=2.6
   - pyyaml>=6.0
-  - numpy>=1.24
+  - numpy>=1.24,<2.4  # SyRI 1.8 fails with NumPy 2.4 (array-to-scalar conversion)
+  - pandas<3  # SyRI 1.8 is not tested with pandas 3
   - pyfaidx>=0.8
   - matplotlib-base>=3.8
   - pyside6>=6.7
