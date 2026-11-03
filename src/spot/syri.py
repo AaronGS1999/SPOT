@@ -161,7 +161,7 @@ def align(config: Config, workdir: Path) -> Path:
         return out
     workdir.mkdir(parents=True, exist_ok=True)
     paf = workdir / "genomes.paf"
-    threads = str(config.threads)
+    threads = str(config.n_threads)
     log.info("aligning %s (reference) and %s (query) with minimap2 -x %s", ref.name, qry.name, preset)
     run(["minimap2", "-c", "--eqx", "-x", preset, "-t", threads, *as_args(minimap2), ref, qry], stdout=paf)
     log.info("running SyRI")

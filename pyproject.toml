@@ -17,10 +17,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "mypy>=1.10", "ruff>=0.5", "types-PyYAML"]
+gui = ["PySide6>=6.7"]
+test = ["pytest>=8", "pytest-qt>=4.4", "mypy>=1.10", "ruff>=0.5", "types-PyYAML"]
 
 [project.scripts]
 spot = "spot.cli:main"
+
+[project.gui-scripts]
+spot-gui = "spot.gui:main"
 
 [tool.hatch.version]
 path = "src/spot/__init__.py"

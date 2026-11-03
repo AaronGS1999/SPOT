@@ -19,7 +19,7 @@ log = logging.getLogger("spot")
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    setup(args.verbose)
+    setup(args.verbose, args.progress)
     try:
         code: int = args.func(args)
         return code
@@ -29,12 +29,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:
         log.error("interrupted")
         return 130
+    except BrokenPipeError:  # e.g. `spot config | less` closed early
+        sys.stderr.close()
+        return 0
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="spot", description="Synteny-based Positional Orthology Test")
     parser.add_argument("--version", action="version", version=f"spot {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true", help="debug messages")
+    parser.add_argument(
+        "--progress", action="store_true", help="machine-readable progress lines (for the app)"
+    )
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     settings = argparse.ArgumentParser(add_help=False)
@@ -42,7 +48,7 @@ def _parser() -> argparse.ArgumentParser:
     settings.add_argument("-p", "--profile", help="built-in profile name or a profile YAML")
     settings.add_argument("-x", dest="preset", choices=["asm5", "asm10", "asm20"], help="minimap2 preset")
     settings.add_argument("--anchors", help="SyRI classes used as anchors, e.g. SYN,INV")
-    settings.add_argument("-t", "--threads", type=int)
+    settings.add_argument("-t", "--threads", type=_threads, help="worker threads, or auto (default)")
     settings.add_argument("-o", "--outdir", type=Path)
     settings.add_argument(
         "--set",
@@ -69,7 +75,20 @@ def _parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("run", parents=[settings], help="run the whole analysis")
     p.set_defaults(func=_run)
+
+    p = sub.add_parser("gui", help="open the desktop app")
+    p.add_argument("config", nargs="?", help="configuration to open")
+    p.set_defaults(func=_gui)
     return parser
+
+
+def _threads(text: str) -> int | str:
+    if text == "auto":
+        return text
+    try:
+        return int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a number or auto, got {text!r}") from None
 
 
 def _load(args: argparse.Namespace) -> Config:
@@ -141,6 +160,12 @@ def _inspect(args: argparse.Namespace) -> int:
 def _run(args: argparse.Namespace) -> int:
     pipeline.run(_load(args))
     return 0
+
+
+def _gui(args: argparse.Namespace) -> int:
+    from .gui import main as gui_main
+
+    return gui_main([args.config] if args.config else [])
 
 
 def _table(rows: list[list[str]], numeric: bool = True) -> str:

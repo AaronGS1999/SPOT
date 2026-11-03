@@ -20,6 +20,7 @@ from pathlib import Path
 
 from .config import Blastn, Validation
 from .locate import Genome, Location
+from .progress import Progress, silent
 from .tools import as_args, run
 
 log = logging.getLogger("spot")
@@ -198,16 +199,33 @@ def parse_hsps(text: str, min_identity: float, min_length: int) -> list[Hsp]:
 
 
 class Validator:
+    """Runs BLASTN for all candidate pairs at once.
+
+    All flanked loci go into one BLAST database; the tested loci are split into chunks searched in
+    parallel, one single-threaded ``blastn`` per worker, each restricted (``-seqidlist``) to the
+    candidates of its own loci, and only the HSPs of the requested pairs are kept. ``-dbsize`` is set
+    to the length of one flanked locus, so E-values are those of a pairwise comparison and do not grow
+    with the number of pairs.
+    """
+
     def __init__(
-        self, settings: Validation, blastn: Blastn, genomes: Mapping[str, Genome], threads: int
+        self,
+        settings: Validation,
+        blastn: Blastn,
+        genomes: Mapping[str, Genome],
+        threads: int,
+        progress: Progress = silent,
     ) -> None:
         self.settings = settings
         self.identity = blastn.perc_identity
         self.options = as_args(blastn.model_dump(), single_dash=True)
         self.genomes = genomes
-        self.threads = threads
+        self.threads = max(1, threads)
+        self.progress = progress
 
-    def check(self, jobs: Iterable[tuple[Location, Location]]) -> dict[tuple[str, str], FlankCheck]:
+    def regions(
+        self, jobs: Iterable[tuple[Location, Location]]
+    ) -> tuple[dict[str, Region], list[tuple[str, str]]]:
         regions: dict[str, Region] = {}
         pairs: list[tuple[str, str]] = []
         for tested, candidate in jobs:
@@ -215,40 +233,98 @@ class Validator:
                 if loc.gene not in regions:
                     regions[loc.gene] = region(self.genomes[loc.species], loc, self.settings.window)
             pairs.append((tested.gene, candidate.gene))
-        pairs = list(dict.fromkeys(pairs))
+        return regions, list(dict.fromkeys(pairs))
+
+    def check(self, jobs: Iterable[tuple[Location, Location]]) -> dict[tuple[str, str], FlankCheck]:
+        regions, pairs = self.regions(jobs)
         if not pairs:
             return {}
         log.info(
-            "validating %d candidate pairs with BLASTN (+-%d bp, %s%s)",
+            "validating %d candidate pairs with BLASTN (+-%d bp, %s%s, %d threads)",
             len(pairs),
             self.settings.window,
             self.settings.mode,
             ", reciprocal" if self.settings.reciprocal else "",
+            self.threads,
         )
-        with tempfile.TemporaryDirectory(prefix="spot_blastn_") as tmp:
-            files: dict[str, Path] = {}
-            for i, (name, reg) in enumerate(regions.items()):
-                files[name] = Path(tmp, f"{i}.fa")
-                files[name].write_text(f">{name}\n{reg.seq}\n")
+        hsps = self.search(regions, pairs)
+        return {(a, b): judge(hsps.get((a, b), []), regions[a], regions[b], self.settings) for a, b in pairs}
 
-            def one(pair: tuple[str, str]) -> FlankCheck:
-                a, b = pair
-                return self._one(regions[a], regions[b], files[a], files[b])
+    def search(
+        self, regions: Mapping[str, Region], pairs: list[tuple[str, str]]
+    ) -> dict[tuple[str, str], list[Hsp]]:
+        names = list(regions)
+        index = {name: i for i, name in enumerate(names)}
+        wanted: dict[int, set[int]] = {}
+        for a, b in pairs:
+            wanted.setdefault(index[a], set()).add(index[b])
+        queries = sorted(wanted)
+        n_chunks = min(len(queries), self.threads * 4)
+        chunks = [queries[i::n_chunks] for i in range(n_chunks)]
+        dbsize = max(len(r.seq) for r in regions.values())
+        found: dict[tuple[str, str], list[Hsp]] = {}
+        done = 0
+        self.progress("validate", 0, len(queries))
+        with tempfile.TemporaryDirectory(prefix="spot_blastn_") as tmp:
+            db = Path(tmp, "regions")
+            with open(Path(tmp, "regions.fa"), "w") as fh:
+                for name in names:
+                    fh.write(f">r{index[name]}\n{regions[name].seq}\n")
+            run(
+                [
+                    "makeblastdb",
+                    "-dbtype",
+                    "nucl",
+                    "-parse_seqids",
+                    "-in",
+                    Path(tmp, "regions.fa"),
+                    "-out",
+                    db,
+                ]
+            )
+            for k, chunk in enumerate(chunks):
+                with open(Path(tmp, f"q{k}.fa"), "w") as fh:
+                    for i in chunk:
+                        fh.write(f">r{i}\n{regions[names[i]].seq}\n")
+                # each chunk is only searched against the candidates of its own loci
+                subjects = sorted({s for i in chunk for s in wanted[i]})
+                Path(tmp, f"s{k}.txt").write_text("".join(f"r{s}\n" for s in subjects))
+
+            def one(k: int) -> tuple[int, str]:
+                out = run(
+                    [
+                        "blastn",
+                        "-query",
+                        Path(tmp, f"q{k}.fa"),
+                        "-db",
+                        db,
+                        "-seqidlist",
+                        Path(tmp, f"s{k}.txt"),
+                        "-dbsize",
+                        str(dbsize),
+                        "-max_target_seqs",
+                        str(len(names)),
+                        "-num_threads",
+                        "1",
+                        "-outfmt",
+                        "6 qseqid sseqid pident length qstart qend sstart send",
+                        *self.options,
+                    ]
+                )
+                return len(chunks[k]), out
 
             with ThreadPoolExecutor(max_workers=self.threads) as pool:
-                return dict(zip(pairs, pool.map(one, pairs), strict=True))
-
-    def _one(self, tested: Region, candidate: Region, query: Path, subject: Path) -> FlankCheck:
-        out = run(
-            [
-                "blastn",
-                "-query",
-                query,
-                "-subject",
-                subject,
-                "-outfmt",
-                "6 pident length qstart qend sstart send",
-                *self.options,
-            ]
-        )
-        return judge(parse_hsps(out, self.identity, self.settings.min_hsp), tested, candidate, self.settings)
+                for n, out in pool.map(one, range(len(chunks))):
+                    for line in out.splitlines():
+                        f = line.split("\t")
+                        if len(f) < 8:
+                            continue
+                        q, s = int(f[0][1:]), int(f[1][1:])
+                        if s not in wanted.get(q, ()):
+                            continue
+                        h = Hsp(float(f[2]), int(f[3]), int(f[4]), int(f[5]), int(f[6]), int(f[7]))
+                        if h.pident >= self.identity and h.length >= self.settings.min_hsp:
+                            found.setdefault((names[q], names[s]), []).append(h)
+                    done += n
+                    self.progress("validate", done, len(queries))
+        return found

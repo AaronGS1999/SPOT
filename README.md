@@ -18,6 +18,20 @@ spot check
 On Apple Silicon the environment solves natively. If the solver complains about the macOS version, prefix the
 first command with `CONDA_OVERRIDE_OSX=14.0`.
 
+## Desktop app
+
+```sh
+spot gui                 # or: spot gui my_project.yaml, or the spot-gui launcher
+```
+
+The app edits the same YAML configuration as the command line. **Project** sets the OrthoFinder folder
+(runs are found automatically; choose which to use, their labels, colours and units), the two species and
+the output folder. **Parameters** shows every engine setting with its value and whether it comes from the
+profile or from the project; only project values are saved. **Run** checks the configuration, runs the
+engine in its own process (with a progress bar per stage and Cancel) and keeps a copy of exactly what ran
+in `outdir/spot_app.yaml`. **Results** shows the summary, filterable tables, the figures and, for each
+confirmed pair, its Gepard dotplot and gene tree.
+
 ## Usage
 
 ```sh
@@ -75,6 +89,14 @@ Options of external tools use the tools' own names (`minimap2: {x: asm10}`, `bla
 
 A shared orthogroup is a `syntenic_ortholog` when at least one pair is confirmed, `evaluable_not_syntenic`
 when some member could be tested but none was confirmed, and `not_evaluable` otherwise.
+
+### Threads
+
+`threads: auto` (the default) uses the performance cores of the computer (on Apple Silicon the efficiency
+cores are left out). BLASTN runs as one single-threaded search per worker over a shared database of all
+flanked loci, each restricted to the candidates of its own loci; Gepard draws all dotplots of a worker in a
+single Java process, which is about 15 times faster than one JVM per dotplot. Results are written with one
+thread per OrthoFinder run, which helps on network drives.
 
 Each stage keeps a checkpoint in `outdir/.spot/`, keyed by a hash of its inputs and settings, so a repeated
 or interrupted run only redoes what changed (`resume: false` turns this off). Input digests are cached in

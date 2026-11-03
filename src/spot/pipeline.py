@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from .locate import Genome, Location, locate
 from .log import add_file
 from .orthofinder import OrthoFinderRun
 from .positional import FLANKS_NOT_CONFIRMED, SYNTENIC_ORTHOLOG, GeneIndex, Test
+from .progress import Progress, Reporter, silent
 from .syri import AlignedIndex, Alignment
 from .util import natural_key
 from .validate import Region, Validator, region
@@ -59,7 +61,7 @@ def homology(config: Config, alignments: list[Alignment]) -> set[tuple[str, str]
     return syri.homologous_pairs(alignments, config.anchors.min_syn_frac)
 
 
-def analyse(config: Config, checkpoints: Checkpoints | None = None) -> Analysis:
+def analyse(config: Config, checkpoints: Checkpoints | None = None, progress: Progress = silent) -> Analysis:
     check_inputs(config)
     cp = checkpoints or Checkpoints(config.outdir, enabled=False)
     ref, qry = config.reference, config.query
@@ -68,15 +70,21 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None) -> Analysis:
     runs = orthofinder.load_all(config)
     sequences = {run.name: orthofinder.load_sequences(run) for run in runs}
     genomes = {k: Genome(sp.genome) for k, sp in config.species.items() if sp.genome is not None}
+    progress("locate", 0, 1)
+    with ThreadPoolExecutor(max_workers=len(genomes) or 1) as pool:  # hashing is I/O bound
+        digests = dict(zip(genomes, pool.map(lambda g: digest(g.path), genomes.values()), strict=True))
     species_key = key_of(
         {k: sp.model_dump(mode="json") for k, sp in config.species.items()},
-        {k: digest(g.path) for k, g in genomes.items()},
+        digests,
         {run.name: key_of(sorted(sequences[run.name].items())) for run in runs},
     )
     locations = cp.stage("locate", species_key, lambda: locate(runs, config.species, sequences, genomes))
+    progress("locate", 1, 1)
+    progress("align", 0, 1)
 
     syri_out = config.syri_out or syri.align(config, config.outdir / "genome")
     alignments, blocks = syri.read(syri_out)
+    progress("align", 1, 1)
     homologous = homology(config, alignments)
     order = sorted(homologous, key=lambda p: (natural_key(p[0]), natural_key(p[1])))
     log.info("homologous chromosomes: %s", ", ".join(f"{r}-{q}" for r, q in order))
@@ -92,7 +100,8 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None) -> Analysis:
 
     tests: dict[str, dict[str, Test]] = {}
     jobs: list[tuple[Location, Location]] = []
-    for run in runs:
+    progress("test", 0, len(runs))
+    for n_run, run in enumerate(runs, start=1):
         tests[run.name] = {}
         for g in run.genes.values():
             same = set(run.orthogroups[g.orthogroup].members[other[g.species]]) if g.assigned else set()
@@ -103,9 +112,10 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None) -> Analysis:
             tests[run.name][g.id] = t
             if t.klass == SYNTENIC_ORTHOLOG:
                 jobs.extend((locations[g.id], locations[o]) for o in t.orthologs)
+        progress("test", n_run, len(runs))
 
     if config.validation.enabled:
-        validator = Validator(config.validation, config.blastn, genomes, config.threads)
+        validator = Validator(config.validation, config.blastn, genomes, config.n_threads, progress)
         job_key = key_of(
             species_key,
             config.validation.model_dump(mode="json"),
@@ -133,7 +143,8 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None) -> Analysis:
     )
 
 
-def run(config: Config) -> Analysis:
+def run(config: Config, progress: Progress | None = None) -> Analysis:
+    progress = progress or Reporter()
     out = config.outdir
     out.mkdir(parents=True, exist_ok=True)
     handler = add_file(out / "spot.log")
@@ -147,14 +158,23 @@ def run(config: Config) -> Analysis:
         if broken:
             raise ToolError(f"missing or broken: {', '.join(broken)} (see spot check)")
 
-        analysis = analyse(config, Checkpoints(out, enabled=config.resume))
+        log.info("threads: %d", config.n_threads)
+        analysis = analyse(config, Checkpoints(out, enabled=config.resume), progress)
         _write_homology(out / "homology.tsv", analysis)
         species = [plots.SpeciesStyle(k, config.species[k].label) for k in (config.reference, config.query)]
         styles = _run_styles(config, analysis.runs)
         lengths = {k: g.lengths for k, g in analysis.genomes.items()}
-        dotplots = []
-        for result, style in zip(analysis.results, styles, strict=True):
-            folder = export_run(result, analysis.locations, analysis.sequences[result.run.name], out)
+        dotplots: list[tuple[Path, Region, Region]] = []
+        progress("export", 0, len(analysis.results))
+
+        def export(result: RunResult) -> Path:
+            return export_run(result, analysis.locations, analysis.sequences[result.run.name], out)
+
+        # writing thousands of small files is I/O bound (slow on network drives): one thread per run
+        with ThreadPoolExecutor(max_workers=max(1, min(len(analysis.results), config.n_threads))) as pool:
+            folders = list(pool.map(export, analysis.results))
+        progress("export", len(analysis.results), len(analysis.results))
+        for result, style, folder in zip(analysis.results, styles, folders, strict=True):
             plots.venn(result, species, style, folder / "venn")
             if config.dotplots.pairs:
                 dotplots += _dotplot_jobs(result, analysis, folder)
@@ -162,7 +182,8 @@ def run(config: Config) -> Analysis:
             gepard = tools.find_gepard()
             if gepard is None:
                 raise ToolError("Gepard not found")
-            GepardPlotter(gepard, config.gepard, config.threads).plot(dotplots)
+            GepardPlotter(gepard, config.gepard, config.n_threads, progress).plot(dotplots)
+        progress("plots", 0, 1)
 
         plots.venn_panel(analysis.results, species, styles, out / "venn_panel")
         centromeres = {k: plots.read_bed(sp.centromeres) for k, sp in config.species.items()}
@@ -185,6 +206,7 @@ def run(config: Config) -> Analysis:
             plots.genome_dotplot(
                 analysis.alignments, species, lengths, analysis.homologous, links, out / "genome" / "dotplot"
             )
+        progress("plots", 1, 1)
         _report(analysis)
         return analysis
     finally:

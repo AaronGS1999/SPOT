@@ -24,34 +24,52 @@ class _ToolOptions(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+def _f(default: Any, text: str, **kw: Any) -> Any:
+    """A field with a description (shown as help in the app)."""
+    if callable(default):
+        return Field(default_factory=default, description=text, **kw)
+    return Field(default, description=text, **kw)
+
+
 class Minimap2(_ToolOptions):
-    x: Literal["asm5", "asm10", "asm20"] = "asm10"
+    x: Literal["asm5", "asm10", "asm20"] = _f(
+        "asm10", "minimap2 preset: asm5 for ~0.1 % divergence, asm10 ~1 %, asm20 ~5 %"
+    )
 
 
 class Syri(_ToolOptions):
-    nosnp: bool = True
+    nosnp: bool = _f(True, "skip SNP and indel calling (not needed by SPOT, much faster)")
 
 
 class Blastn(_ToolOptions):
-    evalue: float = 1e-10
-    perc_identity: float = Field(80.0, ge=0, le=100)
+    evalue: float = _f(1e-10, "maximum E-value of a flank HSP", gt=0)
+    perc_identity: float = _f(80.0, "minimum identity (%) of a flank HSP", ge=0, le=100)
 
 
 class Gepard(_ToolOptions):
-    matrix: str = "edna.mat"
-    word: int = Field(10, ge=1)
+    matrix: str = _f("edna.mat", "substitution matrix (a name in Gepard's matrices folder, or a path)")
+    word: int = _f(10, "word length of the suffix-array dotplot", ge=1)
 
 
 class Anchors(_Section):
-    types: list[str] = Field(default_factory=lambda: ["SYN", "INV"])
-    same_chromosome: bool = True
-    homology: Literal["auto"] | list[tuple[str, str]] = "auto"
-    min_syn_frac: float = Field(0.1, ge=0, le=1)
-    gapmax: int = Field(50_000, ge=0)
-    tol: int = Field(2_000, ge=0)
-    tol_frac: float = Field(0.1, ge=0, le=1)
-    flank: int = Field(1_000, ge=0)
-    min_aligned_frac: float = Field(0.5, ge=0, le=1)
+    types: list[str] = _f(lambda: ["SYN", "INV"], "SyRI classes whose alignments are used as anchors")
+    same_chromosome: bool = _f(True, "only anchors joining homologous chromosomes")
+    homology: Literal["auto"] | list[tuple[str, str]] = _f(
+        "auto", "homologous chromosome pairs: auto (from SYN alignments) or a list of [reference, query]"
+    )
+    min_syn_frac: float = _f(
+        0.1,
+        "keep a chromosome pair with at least this share of the best pair's SYN (1 = best only)",
+        ge=0,
+        le=1,
+    )
+    gapmax: int = _f(50_000, "maximum distance (bp) from a sequence to each anchor", ge=0)
+    tol: int = _f(2_000, "minimum slack (bp) added to both ends of the projected window", ge=0)
+    tol_frac: float = _f(0.1, "slack as a fraction of the distance to the farthest anchor", ge=0, le=1)
+    flank: int = _f(1_000, "anchors closer than this (bp) are reported as flank_anchors evidence", ge=0)
+    min_aligned_frac: float = _f(
+        0.5, "an empty window counts as an aligned locus when at least this fraction is aligned", ge=0, le=1
+    )
 
     @field_validator("types", mode="before")
     @classmethod
@@ -73,19 +91,21 @@ class Anchors(_Section):
 
 
 class Validation(_Section):
-    enabled: bool = True
-    mode: Literal["colinear", "coverage"] = "colinear"
-    reciprocal: bool = True
-    window: int = Field(10_000, ge=1)
-    min_hsp: int = Field(200, ge=1)
-    min_frac: float = Field(0.2, ge=0, le=1)
-    min_bp: int = Field(1_000, ge=0)
-    max_offset: int = Field(500, ge=0)
+    enabled: bool = _f(True, "confirm candidate pairs by aligning their flanks with BLASTN")
+    mode: Literal["colinear", "coverage"] = _f(
+        "colinear", "colinear: flanks must join the matching flank; coverage: any HSP counts (v3)"
+    )
+    reciprocal: bool = _f(True, "both loci of a pair must pass, not only the tested one")
+    window: int = _f(10_000, "flank length (bp) taken on each side of both loci", ge=1)
+    min_hsp: int = _f(200, "minimum HSP length (bp)", ge=1)
+    min_frac: float = _f(0.2, "minimum aligned fraction of each flank", ge=0, le=1)
+    min_bp: int = _f(1_000, "minimum aligned bases of each flank", ge=0)
+    max_offset: int = _f(500, "how far (bp) a flank HSP may run past the other locus", ge=0)
 
 
 class Dotplots(_Section):
-    pairs: bool = True
-    genome: bool = True
+    pairs: bool = _f(True, "a Gepard dotplot for every confirmed pair")
+    genome: bool = _f(True, "a whole-genome dotplot of the SyRI alignments")
 
 
 class Species(_Section):
@@ -141,7 +161,7 @@ class Config(_Section):
     reference: str
     query: str
     outdir: Path = Path("spot_out")
-    threads: int = Field(4, ge=1)
+    threads: int | Literal["auto"] = "auto"
     profile: str = "default"
     resume: bool = True
     syri_out: Path | None = None
@@ -162,6 +182,20 @@ class Config(_Section):
             if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", key):
                 raise ValueError(f"species key {key!r} must be alphanumeric")
         return value
+
+    @field_validator("threads")
+    @classmethod
+    def _threads(cls, value: int | str) -> int | str:
+        if isinstance(value, int) and value < 1:
+            raise ValueError("threads must be at least 1, or auto")
+        return value
+
+    @property
+    def n_threads(self) -> int:
+        """Worker threads for this run (``auto`` = performance cores)."""
+        from .resources import resolve
+
+        return resolve(self.threads)
 
     @model_validator(mode="after")
     def _roles(self) -> Config:

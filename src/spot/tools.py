@@ -98,6 +98,18 @@ class Gepard:
         return path if path.is_absolute() else self.matrices / name
 
 
+def java_executable() -> str:
+    """The Java of the active environment when there is one (conda's openjdk lives in lib/jvm), then
+    $JAVA_HOME, then whatever ``java`` is on PATH (on macOS /usr/bin/java is only a launcher stub)."""
+    candidates = [Path(sys.prefix, "lib", "jvm", "bin", "java")]
+    if home := os.environ.get("JAVA_HOME"):
+        candidates.append(Path(home, "bin", "java"))
+    for path in candidates:
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+    return shutil.which("java") or "java"
+
+
 def find_gepard() -> Gepard | None:
     candidates: list[Path] = []
     if env := os.environ.get("SPOT_GEPARD_JAR"):
@@ -138,8 +150,14 @@ def check(config: Config | None = None) -> list[Status]:
     need = required(config)
     report = []
     for tool in TOOLS:
-        path = shutil.which(tool.version_cmd[0])
-        version = version_of(tool.version_cmd, tool.pattern) if path else None
+        if tool.name == "java":
+            java = java_executable()
+            path = java if Path(java).is_file() else shutil.which(java)
+            cmd: tuple[str, ...] = (java, *tool.version_cmd[1:])
+        else:
+            path = shutil.which(tool.version_cmd[0])
+            cmd = tool.version_cmd
+        version = version_of(cmd, tool.pattern) if path else None
         report.append(Status(tool.name, tool.package, tool.name in need, path, version))
     gepard = find_gepard()
     if gepard is None:
