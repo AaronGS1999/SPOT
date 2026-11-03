@@ -158,6 +158,10 @@ def align(config: Config, workdir: Path, progress: Progress = silent) -> Path:
     workdir.mkdir(parents=True, exist_ok=True)
     paf, out = workdir / "genomes.paf", workdir / "syri.out"
     threads = str(config.n_threads)
+    if _fresh(out, workdir / "syri.stamp.json", syri_stamp):
+        log.info("reusing %s", out)
+        progress("align", 2, 2)
+        return out
     progress("align", 0, 2)
     if _fresh(paf, workdir / "genomes.stamp.json", paf_stamp):
         log.info("reusing %s", paf)

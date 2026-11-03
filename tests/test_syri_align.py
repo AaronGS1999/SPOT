@@ -36,5 +36,8 @@ def test_align_writes_only_in_its_folder(tmp_path: Path, monkeypatch: pytest.Mon
     out = syri.align(cfg, tmp_path / "genome")
     assert out.is_file() and (tmp_path / "genome" / "syri.log").is_file()
     assert os.listdir(elsewhere) == []
+    stamp = tmp_path / "genome" / "syri.stamp.json"
+    before = stamp.stat().st_mtime_ns
+    assert syri.align(cfg, tmp_path / "genome") == out and stamp.stat().st_mtime_ns == before
     alignments, _ = syri.read(out)
     assert {"SYN", "INV"} <= {a.kind for a in alignments}
