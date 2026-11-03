@@ -6,11 +6,14 @@ set -u
 
 RES="$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources" && pwd)"
 VERSION="$(cat "$RES/version")"
+# conda environments cannot live in a path with spaces (script #! lines break), so not in
+# ~/Library/Application Support
 if [ "$(uname -s)" = "Darwin" ]; then
-    SUPPORT="$HOME/Library/Application Support/SPOT"
+    SUPPORT="$HOME/.spot"
 else
     SUPPORT="${XDG_DATA_HOME:-$HOME/.local/share}/spot"
 fi
+case "$SUPPORT" in *" "*) SUPPORT="/tmp/spot-$(id -u)" ;; esac
 ENV="$SUPPORT/env"
 LOG="$SUPPORT/install.log"
 MARK="$ENV/.spot-$VERSION"
@@ -53,7 +56,7 @@ if [ ! -f "$MARK" ]; then
             "$MM" create -y -p "$ENV" -f "$RES/environment-app.yml"
         fi
     } >>"$LOG" 2>&1 || fail "the tools could not be installed (is the computer online?)"
-    "$ENV/bin/python" -m pip install --no-deps --force-reinstall "$RES"/spot-*.whl >>"$LOG" 2>&1 \
+    "$ENV/bin/python" -m pip install --no-deps --force-reinstall "$RES/spot-$VERSION-py3-none-any.whl" >>"$LOG" 2>&1 \
         || fail "SPOT could not be installed"
     rm -f "$ENV"/.spot-*
     touch "$MARK"

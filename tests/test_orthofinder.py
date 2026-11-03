@@ -55,7 +55,7 @@ def test_load(of_root: Path) -> None:
 
 
 def test_column_matching_two_species(of_root: Path) -> None:
-    species = {"AA": Species(label="A", match="_set"), "BB": Species(label="B", match="^BB_")}
+    species = {"AA": Species(label="A", match="_set$"), "BB": Species(label="B", match="BB")}
     with pytest.raises(InputError, match="matches species AA, BB"):
         orthofinder.load("runA", of_root / "runA" / "results" / "Results_Oct27", species)
 
@@ -109,3 +109,9 @@ def test_search_program(
 def test_load_all(config_file: Path) -> None:
     runs = orthofinder.load_all(config.load(config_file))
     assert [r.name for r in runs] == ["runA", "runB"]
+
+
+def test_plain_prefix_matches_column_start(of_root: Path) -> None:
+    species = {"AA": Species(label="A", match="AA"), "BB": Species(label="B", match="BB")}
+    run = orthofinder.load("runA", of_root / "runA" / "results" / "Results_Oct27", species)
+    assert run.columns == {"AA": "AA_set", "BB": "BB_set"}

@@ -122,8 +122,12 @@ class Species(_Section):
     @field_validator("match")
     @classmethod
     def _match(cls, value: str) -> str:
-        _compile(value)
+        _compile(column_pattern(value))
         return value
+
+    @property
+    def column_regex(self) -> re.Pattern[str]:
+        return re.compile(column_pattern(self.match))
 
     @field_validator("header_regex")
     @classmethod
@@ -216,6 +220,11 @@ SECTIONS: dict[str, type[BaseModel]] = {
     "validation": Validation,
     "dotplots": Dotplots,
 }
+
+
+def column_pattern(match: str) -> str:
+    """``match`` as a regular expression: a plain name such as ``MS`` means "columns starting with MS"."""
+    return "^" + re.escape(match) if re.fullmatch(r"[A-Za-z0-9_.\-]+", match) else match
 
 
 def _compile(pattern: str) -> re.Pattern[str]:

@@ -43,6 +43,9 @@ def run(cmd: Sequence[str | Path], *, stdout: Path | None = None) -> str:
             with open(stdout, "w") as fh:
                 proc = subprocess.run(args, stdout=fh, stderr=subprocess.PIPE, text=True)
     except FileNotFoundError:
+        found = shutil.which(args[0])
+        if found:  # the file exists, so its interpreter (#! line) does not, e.g. a path with spaces
+            raise ToolError(f"{found} cannot be executed (broken #! interpreter line?)") from None
         raise ToolError(f"{args[0]}: command not found") from None
     if proc.returncode != 0:
         tail = "\n".join(proc.stderr.strip().splitlines()[-15:])

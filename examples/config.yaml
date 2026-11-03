@@ -7,12 +7,12 @@ orthofinder:
 species:
   SP1:
     label: Species one
-    match: "^SP1_"
+    match: SP1
     genome: genomes/sp1.fasta
     centromeres: annotations/sp1_centromeres.bed
   SP2:
     label: Species two
-    match: "^SP2_"
+    match: SP2
     genome: genomes/sp2.fasta
     # coordinates in the sequence names refer to an earlier assembly
     lift:

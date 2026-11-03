@@ -11,7 +11,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QTabWidget
 
-from .. import __version__, config, orthofinder
+from .. import __version__, config, diagnose, orthofinder
 from ..errors import SpotError
 from .parameters import ParametersPage
 from .project import ProjectPage
@@ -162,7 +162,7 @@ class MainWindow(QMainWindow):
         if not self._may_discard():
             return
         self.path = None
-        self.load({"profile": "default", "threads": "auto", "species": {"SP1": {}, "SP2": {}}})
+        self.load({"profile": "default", "threads": "auto", "species": {"": {}, " ": {}}})
 
     def open_dialog(self) -> None:
         if not self._may_discard():
@@ -289,6 +289,22 @@ class MainWindow(QMainWindow):
             counts = ", ".join(f"{k} {v:,}" for k, v in run.summary().items())
             columns = ", ".join(f"{sp} <- {col}" for sp, col in run.columns.items())
             self.runner.message(f"{run.name}: {columns}\n    {counts}")
+        blocking = False
+        paths = [run.path for run in runs]
+        for key, sp in cfg.species.items():
+            if isinstance(sp.coords, Path):
+                continue
+            names = diagnose.headers(paths, sp.match)
+            report = diagnose.species_report(names, sp.header_regex, sp.genome, sp.lift, sp.strip_suffix)
+            self.runner.message(f"\n{key} ({sp.label}):\n    " + report.text().replace("\n", "\n    "))
+            if report.on_genome == 0:
+                blocking = True
+        if blocking:
+            self.runner.message(
+                "\nNo sequence of a species falls on its genome: check the genome and lift files."
+            )
+            self.runner.status.setText("Fix the configuration")
+            return False
         self.runner.message(f"\nthreads: {cfg.n_threads}, profile: {cfg.profile}")
         self.runner.status.setText("Ready to run")
         return True

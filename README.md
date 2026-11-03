@@ -23,7 +23,7 @@ first command with `CONDA_OVERRIDE_OSX=14.0`.
 Build the app once with `python packaging/build.py macos` (gives `dist/SPOT.app`, for Apple Silicon and
 Intel) or `python packaging/build.py linux` (gives `dist/SPOT-linux/`, run its `install.sh`). Open it like any
 other app: the first launch sets up its own environment with Python, Qt, BLAST, minimap2, SyRI, Gepard and
-Java (a few minutes, needs internet; kept in `~/Library/Application Support/SPOT` or
+Java (a few minutes, needs internet; kept in `~/.spot` or
 `~/.local/share/spot`), later launches start at once. From a development install, `spot gui` opens the same
 app.
 

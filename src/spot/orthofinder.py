@@ -224,7 +224,7 @@ def _read_table(path: Path) -> tuple[list[str], list[list[str]]]:
 def _columns(header: list[str], species: Mapping[str, Species], source: Path) -> dict[str, int]:
     found: dict[str, int] = {}
     for i, column in enumerate(header[1:], start=1):
-        hits = [key for key, sp in species.items() if re.search(sp.match, column)]
+        hits = [key for key, sp in species.items() if sp.column_regex.search(column)]
         if not hits:
             patterns = ", ".join(f"{k}: {s.match}" for k, s in species.items())
             raise InputError(f"{source}: column {column!r} matches no species ({patterns})")
