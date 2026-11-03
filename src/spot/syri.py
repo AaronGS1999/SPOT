@@ -163,7 +163,11 @@ def align(config: Config, workdir: Path) -> Path:
     paf = workdir / "genomes.paf"
     threads = str(config.n_threads)
     log.info("aligning %s (reference) and %s (query) with minimap2 -x %s", ref.name, qry.name, preset)
-    run(["minimap2", "-c", "--eqx", "-x", preset, "-t", threads, *as_args(minimap2), ref, qry], stdout=paf)
+    run(
+        ["minimap2", "-c", "--eqx", "-x", preset, "-t", threads, *as_args(minimap2), ref, qry],
+        stdout=paf,
+        cwd=workdir,  # SyRI opens its log (syri.log) in the current folder before reading --dir
+    )
     log.info("running SyRI")
     run(
         [
@@ -181,7 +185,8 @@ def align(config: Config, workdir: Path) -> Path:
             "--nc",
             threads,
             *as_args(config.syri.model_dump()),
-        ]
+        ],
+        cwd=workdir,
     )
     if not out.is_file():
         raise InputError(f"SyRI finished without writing {out}")

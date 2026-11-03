@@ -33,15 +33,17 @@ def as_args(options: Mapping[str, Any], *, single_dash: bool = False) -> list[st
     return args
 
 
-def run(cmd: Sequence[str | Path], *, stdout: Path | None = None) -> str:
+def run(cmd: Sequence[str | Path], *, stdout: Path | None = None, cwd: Path | None = None) -> str:
+    """Run a tool and return its standard output. ``cwd`` matters for tools that write files to the
+    current folder (an app started from the Finder runs in /, which is read-only)."""
     args = [str(c) for c in cmd]
     log.debug("$ %s", shlex.join(args))
     try:
         if stdout is None:
-            proc = subprocess.run(args, capture_output=True, text=True)
+            proc = subprocess.run(args, capture_output=True, text=True, cwd=cwd)
         else:
             with open(stdout, "w") as fh:
-                proc = subprocess.run(args, stdout=fh, stderr=subprocess.PIPE, text=True)
+                proc = subprocess.run(args, stdout=fh, stderr=subprocess.PIPE, text=True, cwd=cwd)
     except FileNotFoundError:
         found = shutil.which(args[0])
         if found:  # the file exists, so its interpreter (#! line) does not, e.g. a path with spaces

@@ -99,6 +99,7 @@ class RunPage(QWidget):
         env = QProcessEnvironment.systemEnvironment()
         env.insert("PYTHONUNBUFFERED", "1")
         process.setProcessEnvironment(env)
+        process.setWorkingDirectory(str(config_path.parent))  # never the app's read-only folder
         process.setProgram(sys.executable)
         process.setArguments(["-m", "spot", "--progress", "run", "-c", str(config_path)])
         process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
