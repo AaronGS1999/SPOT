@@ -23,11 +23,12 @@ def test_relative_paths_follow_the_config_file(config_file: Path) -> None:
 
 
 def test_profile_then_file_then_overrides(config_file: Path) -> None:
-    cfg = config.load(config_file, profile="v3")
+    cfg = config.load(config_file, profile="relaxed")
     assert cfg.anchors.types == ["SYN", "INV", "TRANS", "INVTR", "DUP", "INVDP"]
-    assert cfg.validation.min_frac == 0
 
-    config_file.write_text(config_file.read_text() + "profile: v3\nanchors:\n  types: [SYN]\n")
+    config_file.write_text(
+        config_file.read_text() + "profile: relaxed\nvalidation: {min_frac: 0}\nanchors:\n  types: [SYN]\n"
+    )
     assert config.load(config_file).anchors.types == ["SYN"]
 
     overrides = {"anchors": {"types": "syn,inv,syn"}, "minimap2": {"x": "asm20"}}
@@ -74,7 +75,7 @@ def test_species_count(config_file: Path) -> None:
 
 
 def test_unknown_profile(config_file: Path) -> None:
-    with pytest.raises(ConfigError, match="available: default, relaxed, v3"):
+    with pytest.raises(ConfigError, match="available: default, relaxed"):
         config.load(config_file, profile="strictest")
 
 

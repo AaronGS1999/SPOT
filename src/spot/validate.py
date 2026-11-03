@@ -1,12 +1,12 @@
 """Flank validation of candidate positional orthologs with BLASTN.
 
-The two loci are extracted with ``window`` bp on each side and aligned with BLASTN. In ``colinear`` mode
-(the default) an HSP only counts for a flank when it joins the matching flank of the other locus: left
-flank to left flank and right to right on the plus strand, or left to right and right to left on the
-minus strand (a pair inside an inversion). The orientation is chosen from the HSPs, not from the strands
+The two loci are extracted with ``window`` bp on each side and aligned with BLASTN. An HSP only counts
+for a flank when it joins the matching flank of the other locus: left flank to left flank and right to
+right on the plus strand, or left to right and right to left on the minus strand (a pair inside an
+inversion). The orientation is chosen from the HSPs, not from the strands
 of the two sequences, because NUXTs of two species may come from organelle genomes assembled in opposite
-orientations. ``coverage`` mode reproduces the v3 script: any HSP anywhere counts. With ``reciprocal``
-the same HSPs are also read from the candidate's side, so both flanks of both loci must pass.
+orientations. With ``reciprocal`` the same HSPs are also read from the candidate's side, so both flanks
+of both loci must pass.
 """
 
 from __future__ import annotations
@@ -104,11 +104,6 @@ def _union(spans: Iterable[tuple[int, int]]) -> int:
     return total + cur_e - cur_s
 
 
-def covered(hsps: Iterable[tuple[int, int]], lo: int, hi: int) -> int:
-    """Bases of [lo, hi) (0-based) covered by HSPs given as 1-based inclusive query coordinates."""
-    return _union((max(s - 1, lo), min(e, hi)) for s, e in hsps if e > lo and s - 1 < hi)
-
-
 def colinear(
     hsps: Iterable[Hsp], query: Region, subject: Region, max_offset: int, inverted: bool
 ) -> tuple[int, int]:
@@ -165,17 +160,6 @@ def judge(hsps: list[Hsp], tested: Region, candidate: Region, settings: Validati
     """Decide whether a candidate pair is confirmed by its flanks, from the HSPs of tested vs candidate."""
     s = settings
     back = [h.swapped() for h in hsps]
-    if s.mode == "coverage":
-        left = covered(((h.qstart, h.qend) for h in hsps), 0, tested.before)
-        right = covered(((h.qstart, h.qend) for h in hsps), tested.before + tested.core, len(tested.seq))
-        ok = _passes(left, right, tested.before, tested.after, s)
-        if not s.reciprocal:
-            return FlankCheck(ok, left, right)
-        bl = covered(((h.qstart, h.qend) for h in back), 0, candidate.before)
-        br = covered(
-            ((h.qstart, h.qend) for h in back), candidate.before + candidate.core, len(candidate.seq)
-        )
-        return FlankCheck(ok and _passes(bl, br, candidate.before, candidate.after, s), left, right, bl, br)
     left, right, inverted = best_colinear(hsps, tested, candidate, s.max_offset)
     ok = _passes(left, right, tested.before, tested.after, s)
     if not s.reciprocal:
@@ -240,10 +224,9 @@ class Validator:
         if not pairs:
             return {}
         log.info(
-            "validating %d candidate pairs with BLASTN (+-%d bp, %s%s, %d threads)",
+            "validating %d candidate pairs with BLASTN (+-%d bp%s, %d threads)",
             len(pairs),
             self.settings.window,
-            self.settings.mode,
             ", reciprocal" if self.settings.reciprocal else "",
             self.threads,
         )

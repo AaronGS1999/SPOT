@@ -1,6 +1,6 @@
 from spot.config import Validation
 from spot.tools import as_args
-from spot.validate import Hsp, Region, colinear, covered, judge, parse_hsps, required
+from spot.validate import Hsp, Region, colinear, judge, parse_hsps, required
 
 # two loci with 1000 bp flanks and a 100 bp core: [1, 1000] left, [1001, 1100] core, [1101, 2100] right
 A = Region("a", "chr1", 1, 2100, "A" * 2100, 1000, 100)
@@ -13,14 +13,6 @@ def test_required_follows_fraction_minimum_and_half_cap() -> None:
     assert required(10_000, 0.0, 1000) == 1000
     assert required(1_500, 0.2, 1000) == 750
     assert required(0, 0.2, 1000) == 0
-
-
-def test_covered_merges_and_clips() -> None:
-    hsps = [(1, 100), (50, 150), (300, 400)]
-    assert covered(hsps, 0, 1000) == 251
-    assert covered(hsps, 0, 120) == 120
-    assert covered(hsps, 350, 1000) == 50
-    assert covered([], 0, 10) == 0
 
 
 def test_direct_flanks_are_colinear() -> None:
@@ -39,8 +31,6 @@ def test_crossed_flanks_are_rejected() -> None:
     assert colinear(hsps, A, B, 200, inverted=False) == (0, 0)
     assert colinear(hsps, A, B, 200, inverted=True) == (0, 0)
     assert not judge(hsps, A, B, STRICT).ok
-    # the old coverage mode accepts them
-    assert judge(hsps, A, B, Validation(mode="coverage", min_frac=0.5, min_bp=500)).ok
 
 
 def test_inverted_pair_is_accepted() -> None:

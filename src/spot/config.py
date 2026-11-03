@@ -92,9 +92,6 @@ class Anchors(_Section):
 
 class Validation(_Section):
     enabled: bool = _f(True, "confirm candidate pairs by aligning their flanks with BLASTN")
-    mode: Literal["colinear", "coverage"] = _f(
-        "colinear", "colinear: flanks must join the matching flank; coverage: any HSP counts (v3)"
-    )
     reciprocal: bool = _f(True, "both loci of a pair must pass, not only the tested one")
     window: int = _f(10_000, "flank length (bp) taken on each side of both loci", ge=1)
     min_hsp: int = _f(200, "minimum HSP length (bp)", ge=1)

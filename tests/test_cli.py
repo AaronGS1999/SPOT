@@ -37,7 +37,7 @@ def test_bad_config_exits_2(config_file: Path) -> None:
 
 def test_profiles(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["profiles"]) == 0
-    assert [line.split()[0] for line in capsys.readouterr().out.splitlines()] == ["default", "relaxed", "v3"]
+    assert [line.split()[0] for line in capsys.readouterr().out.splitlines()] == ["default", "relaxed"]
 
 
 def test_gepard_jar_from_wrapper(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

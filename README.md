@@ -43,7 +43,7 @@ spot config  -c config.yaml        # resolved configuration
 spot inspect -c config.yaml        # what SPOT reads from each OrthoFinder run
 spot check   -c config.yaml        # external tools needed by this configuration
 spot profiles                      # built-in profiles
-spot profiles v3
+spot profiles relaxed
 ```
 
 See `examples/config.yaml`. Settings are applied in this order, each overriding the previous one:
@@ -60,7 +60,6 @@ Options of external tools use the tools' own names (`minimap2: {x: asm10}`, `bla
 |---|---|---|
 | `default` | SYN, INV | aligned fraction and minimum length |
 | `relaxed` | all six, homologous chromosome only | as default |
-| `v3` | all six, homologous chromosome only | >= 1 kb per flank |
 
 ### Input
 
@@ -85,10 +84,9 @@ Options of external tools use the tools' own names (`minimap2: {x: asm10}`, `bla
    by `max(tol, tol_frac * distance to the farthest anchor)` and searched for members of the same orthogroup.
    An empty window is `empty_locus_aligned` when at least `min_aligned_frac` of it is aligned by SyRI (the
    locus exists and holds no sequence) and `empty_locus_gap` otherwise (not evaluable).
-4. **Flank validation.** Each candidate pair is aligned with BLASTN with `validation.window` bp of flank. In
-   `colinear` mode a flank only counts where it joins the matching flank of the other locus (left to left on
-   the plus strand, or left to right on the minus strand), and with `reciprocal` both loci must pass.
-   `coverage` mode (profile `v3`) counts any HSP, as the v3 script did.
+4. **Flank validation.** Each candidate pair is aligned with BLASTN with `validation.window` bp of flank. A
+   flank only counts where it joins the matching flank of the other locus (left to left on the plus strand,
+   or left to right on the minus strand), and with `reciprocal` both loci must pass.
 
 A shared orthogroup is a `syntenic_ortholog` when at least one pair is confirmed, `evaluable_not_syntenic`
 when some member could be tested but none was confirmed, and `not_evaluable` otherwise.

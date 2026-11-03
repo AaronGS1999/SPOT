@@ -25,7 +25,7 @@ NOT_EVALUABLE = (
     "unplaced",
 )
 
-# projected anchor ends further apart than this are not one locus (same rule as v3)
+# projected anchor ends further apart than this are not one locus
 SPREAD_FACTOR = 3
 SPREAD_SLACK = 10_000
 
