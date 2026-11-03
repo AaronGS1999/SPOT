@@ -82,7 +82,7 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None, progress: Pr
     progress("locate", 1, 1)
     progress("align", 0, 1)
 
-    syri_out = config.syri_out or syri.align(config, config.outdir / "genome")
+    syri_out = config.syri_out or syri.align(config, config.outdir / "genome", progress)
     alignments, blocks = syri.read(syri_out)
     progress("align", 1, 1)
     homologous = homology(config, alignments)

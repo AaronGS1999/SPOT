@@ -4,13 +4,14 @@ import bisect
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from .cache import digest
 from .config import SYRI_CLASSES, Config
 from .errors import InputError
+from .progress import Progress, silent
 from .tools import as_args, run
 from .util import natural_key
 
@@ -142,56 +143,70 @@ class AlignedIndex:
         return total
 
 
-def align(config: Config, workdir: Path) -> Path:
+def align(config: Config, workdir: Path, progress: Progress = silent) -> Path:
+    """minimap2 + SyRI. Each step is reused when its inputs and settings are unchanged, so a run that
+    stopped in SyRI does not repeat the (long) alignment."""
     ref = config.species[config.reference].genome
     qry = config.species[config.query].genome
     if ref is None or qry is None:
         raise InputError("both genomes are required to align them")
     minimap2 = config.minimap2.model_dump()
     preset = minimap2.pop("x")
-    stamp = {
-        "reference": _fingerprint(ref),
-        "query": _fingerprint(qry),
-        "minimap2": {"x": preset, **minimap2},
-        "syri": config.syri.model_dump(),
-    }
-    out, stamp_file = workdir / "syri.out", workdir / "syri.stamp.json"
-    if out.is_file() and stamp_file.is_file() and json.loads(stamp_file.read_text()) == stamp:
-        log.info("reusing %s", out)
-        return out
+    genomes = {"reference": _fingerprint(ref), "query": _fingerprint(qry)}
+    paf_stamp = {**genomes, "minimap2": {"x": preset, **minimap2}}
+    syri_stamp = {**paf_stamp, "syri": config.syri.model_dump()}
     workdir.mkdir(parents=True, exist_ok=True)
-    paf = workdir / "genomes.paf"
+    paf, out = workdir / "genomes.paf", workdir / "syri.out"
     threads = str(config.n_threads)
-    log.info("aligning %s (reference) and %s (query) with minimap2 -x %s", ref.name, qry.name, preset)
-    run(
-        ["minimap2", "-c", "--eqx", "-x", preset, "-t", threads, *as_args(minimap2), ref, qry],
-        stdout=paf,
-        cwd=workdir,  # SyRI opens its log (syri.log) in the current folder before reading --dir
-    )
-    log.info("running SyRI")
-    run(
-        [
-            "syri",
-            "-c",
-            paf,
-            "-r",
-            ref,
-            "-q",
-            qry,
-            "-F",
-            "P",
-            "--dir",
-            workdir,
-            "--nc",
-            threads,
-            *as_args(config.syri.model_dump()),
-        ],
-        cwd=workdir,
-    )
-    if not out.is_file():
-        raise InputError(f"SyRI finished without writing {out}")
-    stamp_file.write_text(json.dumps(stamp, indent=2))
+    progress("align", 0, 2)
+    if _fresh(paf, workdir / "genomes.stamp.json", paf_stamp):
+        log.info("reusing %s", paf)
+    else:
+        log.info("aligning %s (reference) and %s (query) with minimap2 -x %s", ref.name, qry.name, preset)
+        run(
+            ["minimap2", "-c", "--eqx", "-x", preset, "-t", threads, *as_args(minimap2), ref, qry],
+            stdout=paf,
+            cwd=workdir,
+        )
+        (workdir / "genomes.stamp.json").write_text(json.dumps(paf_stamp, indent=2))
+    progress("align", 1, 2)
+    if _fresh(out, workdir / "syri.stamp.json", syri_stamp):
+        log.info("reusing %s", out)
+    else:
+        log.info("running SyRI")
+        run(
+            [
+                "syri",
+                "-c",
+                paf,
+                "-r",
+                ref,
+                "-q",
+                qry,
+                "-F",
+                "P",
+                "--dir",
+                workdir,
+                "--nc",
+                threads,
+                *as_args(config.syri.model_dump()),
+            ],
+            cwd=workdir,  # SyRI opens its log (syri.log) in the current folder before reading --dir
+        )
+        if not out.is_file():
+            raise InputError(f"SyRI finished without writing {out}")
+        (workdir / "syri.stamp.json").write_text(json.dumps(syri_stamp, indent=2))
+    progress("align", 2, 2)
     return out
+
+
+def _fresh(path: Path, stamp_file: Path, stamp: Mapping[str, object]) -> bool:
+    if not (path.is_file() and path.stat().st_size > 0 and stamp_file.is_file()):
+        return False
+    try:
+        return bool(json.loads(stamp_file.read_text()) == stamp)
+    except (OSError, ValueError):
+        return False
 
 
 def _fingerprint(path: Path) -> dict[str, object]:

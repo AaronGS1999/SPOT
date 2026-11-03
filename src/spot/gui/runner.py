@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import signal
 import sys
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Signal
@@ -27,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from ..progress import STAGES, parse
 
+STEP_LABELS = {("align", 0, 2): "minimap2", ("align", 1, 2): "SyRI"}
 STAGE_LABELS = {
     "locate": "Locate sequences",
     "align": "Genome alignment (SyRI)",
@@ -78,6 +80,10 @@ class RunPage(QWidget):
         self._killer = QTimer(self)
         self._killer.setSingleShot(True)
         self._killer.timeout.connect(self._kill)
+        self._stage, self._step, self._since = "", "", 0.0
+        self._clock = QTimer(self)
+        self._clock.setInterval(1000)
+        self._clock.timeout.connect(self._tick)
 
     def message(self, text: str) -> None:
         self.log.appendPlainText(text)
@@ -113,6 +119,7 @@ class RunPage(QWidget):
         self.check_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
         self.status.setText("Running…")
+        self._clock.start()
         process.start()
         self.started.emit()
 
@@ -127,13 +134,37 @@ class RunPage(QWidget):
                 if line.strip():
                     self.message(line.rstrip())
                 continue
-            stage, done, total = update
-            bar = self.bars.get(stage)
-            if bar is not None:
-                bar.setRange(0, max(total, 1))
-                bar.setValue(done)
-                bar.setFormat(f"{done:,} / {total:,}" if total > 1 else ("done" if done else ""))
-                self.status.setText(f"{STAGE_LABELS.get(stage, stage)}…")
+            self._progress(*update)
+
+    def _progress(self, stage: str, done: int, total: int) -> None:
+        bar = self.bars.get(stage)
+        if bar is None:
+            return
+        finished = done >= total
+        if finished:
+            bar.setRange(0, 1)
+            bar.setValue(1)
+            bar.setFormat("done")
+        elif done == 0 or total == 1:
+            bar.setRange(0, 0)  # busy: moving bar until the step reports progress
+        else:
+            bar.setRange(0, total)
+            bar.setValue(done)
+            bar.setFormat(f"{done:,} / {total:,}")
+        if not finished:
+            if stage != self._stage:
+                self._stage, self._since = stage, time.monotonic()
+            self._step = STEP_LABELS.get((stage, done, total), "")
+            self._tick()
+
+    def _tick(self) -> None:
+        if self.process is None or not self._stage:
+            return
+        seconds = int(time.monotonic() - self._since)
+        step = f" ({self._step})" if self._step else ""
+        self.status.setText(
+            f"{STAGE_LABELS.get(self._stage, self._stage)}{step}… {seconds // 60}:{seconds % 60:02d}"
+        )
 
     def _done(self, code: int, status: QProcess.ExitStatus) -> None:
         self._read()
@@ -141,6 +172,12 @@ class RunPage(QWidget):
             self.message(self._buffer.rstrip())
         self._buffer = ""
         self._killer.stop()
+        self._clock.stop()
+        self._stage = ""
+        for bar in self.bars.values():
+            if bar.maximum() == 0:  # a stage still busy when the run stopped
+                bar.setRange(0, 1)
+                bar.setValue(0)
         ok = status == QProcess.ExitStatus.NormalExit and code == 0
         self.status.setText("Finished" if ok else f"Stopped (exit code {code})")
         self.process = None
