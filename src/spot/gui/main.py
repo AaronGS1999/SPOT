@@ -18,6 +18,7 @@ from .project import ProjectPage
 from .results import ResultsPage
 from .runner import RunPage
 
+ICON = Path(__file__).with_name("assets") / "spot.png"
 YAML = "SPOT configuration (*.yaml *.yml);;All files (*)"
 PATH_KEYS = ("genome", "centromeres", "coords")
 
@@ -140,6 +141,9 @@ class MainWindow(QMainWindow):
             )
         )
         help_menu.addAction(about)
+        tools_action = QAction("External tools…", self)
+        tools_action.triggered.connect(self.show_tools)
+        help_menu.addAction(tools_action)
 
     def data(self) -> dict[str, Any]:
         data: dict[str, Any] = {}
@@ -236,6 +240,22 @@ class MainWindow(QMainWindow):
             event.accept()
         else:
             event.ignore()
+
+    def show_tools(self) -> None:
+        from .. import tools
+
+        lines = []
+        for s in tools.check(None):
+            where = s.path or "not found"
+            lines.append(
+                f"{s.name:<9} {s.version or '-':<14} {where}{f'  ({s.problem})' if s.problem else ''}"
+            )
+        box = QMessageBox(self)
+        box.setWindowTitle("External tools")
+        box.setText("Tools SPOT uses, as found by this app:")
+        box.setDetailedText("\n".join(lines))
+        box.setInformativeText("\n".join(lines))
+        box.exec()
 
     # ---------------------------------------------------------------- run
     def _snapshot(self) -> Path | None:

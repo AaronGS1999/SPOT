@@ -16,10 +16,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     from .main import MainWindow
 
-    args = sys.argv[1:] if argv is None else argv
-    app = QApplication.instance() or QApplication(sys.argv[:1])
+    args = [a for a in (sys.argv[1:] if argv is None else argv) if not a.startswith("-psn_")]
+    existing = QApplication.instance()
+    app = existing if isinstance(existing, QApplication) else QApplication(sys.argv[:1])
     app.setApplicationName("SPOT")
+    app.setApplicationDisplayName("SPOT")
     app.setOrganizationName("SPOT")
+    from PySide6.QtGui import QIcon
+
+    from .main import ICON
+
+    if ICON.is_file():
+        app.setWindowIcon(QIcon(str(ICON)))
     window = MainWindow()
     if args:
         window.open_config(args[0])

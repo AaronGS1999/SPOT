@@ -1,0 +1,19 @@
+# Environment the desktop app creates on first launch (engine + external tools, no development tools).
+name: spot-app
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - pyside6>=6.7
+  - pydantic>=2.6
+  - pyyaml>=6.0
+  - numpy>=1.24
+  - pyfaidx>=0.8
+  - matplotlib-base>=3.8
+  - minimap2>=2.28
+  - syri=1.8
+  - blast>=2.16
+  - gepard=2.1
+  - openjdk
+  - pip

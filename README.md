@@ -20,9 +20,12 @@ first command with `CONDA_OVERRIDE_OSX=14.0`.
 
 ## Desktop app
 
-```sh
-spot gui                 # or: spot gui my_project.yaml, or the spot-gui launcher
-```
+Build the app once with `python packaging/build.py macos` (gives `dist/SPOT.app`, for Apple Silicon and
+Intel) or `python packaging/build.py linux` (gives `dist/SPOT-linux/`, run its `install.sh`). Open it like any
+other app: the first launch sets up its own environment with Python, Qt, BLAST, minimap2, SyRI, Gepard and
+Java (a few minutes, needs internet; kept in `~/Library/Application Support/SPOT` or
+`~/.local/share/spot`), later launches start at once. From a development install, `spot gui` opens the same
+app.
 
 The app edits the same YAML configuration as the command line. **Project** sets the OrthoFinder folder
 (runs are found automatically; choose which to use, their labels, colours and units), the two species and
