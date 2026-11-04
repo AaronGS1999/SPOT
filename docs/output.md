@@ -46,11 +46,11 @@ All coordinates are 1-based and inclusive. Tables are tab-separated with a heade
 | `zone` | `shared`, or `SP1_only` / `SP2_only` when only one species has members |
 | `status` | shared orthogroups only: `syntenic_ortholog`, `evaluable_not_syntenic` or `not_evaluable` ([method](method.md#7-classify-the-orthogroups)) |
 | `direction` | species from which the confirmed pairs were found: `SP1->SP2`, `SP2->SP1`, or both joined by `+` |
-| `n_MS`, `n_MO` | number of sequences of each species |
+| `n_SP1`, `n_SP2` | number of sequences of each species |
 | `tree` | `yes` if OrthoFinder built a gene tree |
 | `q_value` | smallest q-value of its members' positional hits |
 | `tree_orthologs` | confirmed pairs also called orthologous by the OrthoFinder gene trees, as `k/n` |
-| `pairs` | confirmed pairs, `SP1 id|SP2 id`, separated by `;` |
+| `pairs` | confirmed pairs as `<SP1 id>\|<SP2 id>`, separated by `;` |
 
 ### `pairs.tsv`: one row per confirmed pair
 
