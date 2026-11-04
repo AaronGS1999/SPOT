@@ -26,5 +26,5 @@ def test_other_header_formats() -> None:
 
 
 def test_initials() -> None:
-    assert diagnose.initials("M. stenopetala") == "MS"
+    assert diagnose.initials("A. thaliana") == "AT"
     assert diagnose.initials("") == ""

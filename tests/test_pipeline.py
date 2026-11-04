@@ -33,7 +33,7 @@ def project(tmp_path: Path) -> Path:
     write_fasta(tmp_path / "genomes" / "a.fa", [("chr1", chrom)])
     write_fasta(tmp_path / "genomes" / "b.fa", [("chr1", chrom)])
 
-    res = tmp_path / "of" / "NUMT" / "Results_Nov01"
+    res = tmp_path / "of" / "run1" / "Results_Nov01"
     (res / "Orthogroups").mkdir(parents=True)
     (res / "Orthogroups" / "Orthogroups.tsv").write_text(ORTHOGROUPS)
     (res / "Orthogroups" / "Orthogroups_UnassignedGenes.tsv").write_text("Orthogroup\tAA_set\tBB_set\r\n")
@@ -57,7 +57,7 @@ def project(tmp_path: Path) -> Path:
         """orthofinder:
   root: of
   runs:
-    NUMT: {label: NUMTs, unit: NUMTs}
+    run1: {label: Run 1, unit: genes}
 species:
   AA: {label: Species A, match: "^AA_", genome: genomes/a.fa}
   BB: {label: Species B, match: "^BB_", genome: genomes/b.fa}
@@ -85,7 +85,7 @@ def test_run(project: Path) -> None:
     assert hit.p_value is not None and hit.q_value is not None and hit.q_value <= 0.05
     assert result.calibration is not None and result.calibration.observed == 2
 
-    out = project / "out" / "NUMT"
+    out = project / "out" / "run1"
     assert (out / "syntenic_ortholog" / "OG0000000" / "OG0000000.pairs.fa").is_file()
     assert (out / "AA_only" / "OG0000002" / "OG0000002.fa").is_file()
     rows = (out / "orthogroups.tsv").read_text().splitlines()

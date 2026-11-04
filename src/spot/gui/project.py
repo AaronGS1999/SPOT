@@ -108,10 +108,10 @@ class SpeciesEditor(QGroupBox):
 
         names = QHBoxLayout()
         names.addWidget(self.key)
-        key_help = "Short name of the species in tables, file names and the confirmed-pair columns, e.g. MS."
+        key_help = "Short name of the species in tables, file names and the confirmed-pair columns, e.g. SP1."
         self.key.setToolTip(key_help)
         label_title = QLabel("name")
-        label_help = "Species name used in the figures, e.g. M. stenopetala (shown in italics)."
+        label_help = "Species name used in the figures, e.g. A. thaliana (shown in italics)."
         label_title.setToolTip(label_help)
         self.label.setToolTip(label_help)
         names.addWidget(label_title)
@@ -120,8 +120,8 @@ class SpeciesEditor(QGroupBox):
         row(
             "column prefix",
             self.match,
-            "Start of this species' column in Orthogroups.tsv, i.e. of its input FASTA name: MS for "
-            "MS_NUMT_evento2.fasta. Filled in by Find runs. A regular expression is also accepted.",
+            "Start of this species' column in Orthogroups.tsv, i.e. of its input FASTA name: SP1 for "
+            "SP1_genes.fasta. Filled in by Find runs. A regular expression is also accepted.",
         )
         row(
             "genome",
@@ -296,10 +296,10 @@ class RunsTable(QTableWidget):
     HELP = (
         "Include this OrthoFinder run in the analysis.",
         "Folder name of the run.",
-        "Title of this run in the figures (Venn diagram, legends), e.g. NUMTs. Empty: the run name.",
+        "Title of this run in the figures (Venn diagram, legends), e.g. Genes. Empty: the run name.",
         "Colour of this run in all figures (syntenic orthologs in the Venn diagram, links and dots in the "
         "synteny figure and the dotplot). auto: a default palette.",
-        "What the sequences are called in the Venn diagram counts, e.g. NUMTs or NUPTs. Empty: sequences.",
+        "What the sequences are called in the Venn diagram counts, e.g. genes or TEs. Empty: sequences.",
         "OrthoFinder results folder used (the latest Results_* of the run).",
     )
 
@@ -487,7 +487,7 @@ class ProjectPage(QWidget):
         prefixes = diagnose.column_prefixes(paths)
         empty = [e for e in self.species if not e.match.text().strip()]
         free = [p for p in prefixes if p not in {e.match.text().strip() for e in self.species}]
-        # a species whose name is already typed gets the prefix made of its initials (M. stenopetala -> MS)
+        # a species whose name is already typed gets the prefix made of its initials (A. thaliana -> AT)
         for editor in list(empty):
             guess = diagnose.initials(editor.label.text())
             if guess in free:

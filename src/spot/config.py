@@ -249,7 +249,7 @@ SECTIONS: dict[str, type[BaseModel]] = {
 
 
 def column_pattern(match: str) -> str:
-    """``match`` as a regular expression: a plain name such as ``MS`` means "columns starting with MS"."""
+    """``match`` as a regular expression: a plain name such as ``SP1`` means "columns starting with SP1"."""
     return "^" + re.escape(match) if re.fullmatch(r"[A-Za-z0-9_.\-]+", match) else match
 
 

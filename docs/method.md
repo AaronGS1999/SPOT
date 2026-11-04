@@ -11,17 +11,17 @@ The analysis has seven steps. Names in `code` are settings (see `examples/config
 
 For each OrthoFinder run SPOT reads `Orthogroups.tsv`, `Orthogroups_UnassignedGenes.tsv`, the sequences
 and the gene trees. Each column of `Orthogroups.tsv` is assigned to one species by its name
-(`species.<key>.match`, e.g. `MS` for `MS_NUMT_evento2`). Every orthogroup then falls in one zone:
+(`species.<key>.match`, e.g. `SP1` for `SP1_genes`). Every orthogroup then falls in one zone:
 
 - **shared**: it has members in both species;
-- **only one species** (`MS_only`): all its members are from one species;
+- **only one species** (`SP1_only`): all its members are from one species;
 - **unassigned**: sequences OrthoFinder left out of every orthogroup.
 
 Only shared orthogroups can be tested.
 
 ## 2. Place every sequence on its genome
 
-The position of each sequence is read from its FASTA header (`chr1:2261774-2261923`, 1-based and inclusive)
+The position of each sequence is read from its FASTA header (`chr1:120001-120150`, 1-based and inclusive)
 or from a table. When the coordinates were taken on another assembly, they are converted through the lift
 files in order: split tables (one chromosome cut into pieces) and AGP files (pieces placed into
 chromosomes, for example by RagTag).
@@ -119,7 +119,7 @@ Each shared orthogroup takes the best result of its members:
 - **evaluable_not_syntenic**: at least one member could be tested, none confirmed;
 - **not_evaluable**: no member could be tested.
 
-The direction column says from which species the pairs were found (`MS->MO`, `MO->MS` or both). Pairs
+The direction column says from which species the pairs were found (`SP1->SP2`, `SP2->SP1` or both). Pairs
 found in both directions are the most robust.
 
 **Agreement with the gene trees.** OrthoFinder also infers orthologues by reconciling each gene tree with

@@ -71,7 +71,7 @@ one: built-in defaults, profile, configuration file, command line (`--set sectio
 
 - **OrthoFinder results**, one run per subfolder (`orthofinder -d` for nucleotide sequences). The latest
   `Results_*` of each run is used.
-- **Coordinates** of each sequence, read from its FASTA header (`chr1:2261774-2261923`, detected
+- **Coordinates** of each sequence, read from its FASTA header (`chr1:120001-120150`, detected
   automatically) or from a table (`id chr start end`).
 - **Two genome FASTA files**, the assemblies the coordinates refer to (or are lifted to).
 - Optional: a `syri.out` of the two genomes, and centromere BED files for the synteny figure.

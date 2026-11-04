@@ -3,8 +3,8 @@
 orthofinder:
   root: orthofinder                # one OrthoFinder run per subfolder
   runs:                            # runs to use, in this order (omit to use all)
-    run_a: {label: Run A, color: "#C1121F", unit: NUMTs}    # label and unit are used in the figures
-    run_b: {label: Run B, color: "#1B7F3B", unit: NUPTs}
+    run_a: {label: Run A, color: "#C1121F", unit: genes}    # label and unit are used in the figures
+    run_b: {label: Run B, color: "#1B7F3B", unit: TEs}
 
 species:
   SP1:

@@ -150,5 +150,5 @@ def column_prefixes(run_paths: Iterable[Path]) -> list[str]:
 
 
 def initials(name: str) -> str:
-    """Upper-case initials of a species name: 'M. stenopetala' -> 'MS', 'Homo sapiens' -> 'HS'."""
+    """Upper-case initials of a species name: 'A. thaliana' -> 'AT', 'Homo sapiens' -> 'HS'."""
     return "".join(w[0] for w in re.findall(r"[A-Za-z]+", name)).upper()

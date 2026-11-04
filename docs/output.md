@@ -1,6 +1,6 @@
 # Output
 
-`MS` and `MO` stand for the keys of the reference and query species; `NUMT_2` for an OrthoFinder run.
+`SP1` and `SP2` stand for the keys of the reference and query species; `run1` for an OrthoFinder run.
 
 ```
 outdir/
@@ -14,7 +14,7 @@ outdir/
 ├── genome/
 │   ├── dotplot.pdf|png       all chromosomes against all
 │   └── genomes.paf, syri.out, …   only when SPOT aligned the genomes
-└── NUMT_2/                   one folder per OrthoFinder run
+└── run1/                     one folder per OrthoFinder run
     ├── summary.txt
     ├── orthogroups.tsv
     ├── pairs.tsv
@@ -23,8 +23,8 @@ outdir/
     ├── syntenic_ortholog/OG…/
     ├── evaluable_not_syntenic/OG…/
     ├── not_evaluable/OG…/
-    ├── MS_only/OG…/, MO_only/OG…/
-    └── unassigned/MS.fa, MO.fa
+    ├── SP1_only/OG…/, SP2_only/OG…/
+    └── unassigned/SP1.fa, SP2.fa
 ```
 
 Each orthogroup folder holds:
@@ -32,7 +32,7 @@ Each orthogroup folder holds:
 - `OG….fa`: all its sequences;
 - `OG….pairs.fa`: the sequences in confirmed pairs (syntenic orthogroups only);
 - `OG…_tree.txt`: its OrthoFinder gene tree (Newick), when OrthoFinder built one (4 or more sequences);
-- `dotplots/<MS id>__<MO id>.png`: a dotplot of each confirmed pair (see figures).
+- `dotplots/<SP1 id>__<SP2 id>.png`: a dotplot of each confirmed pair (see figures).
 
 All coordinates are 1-based and inclusive. Tables are tab-separated with a header line.
 
@@ -43,23 +43,23 @@ All coordinates are 1-based and inclusive. Tables are tab-separated with a heade
 | Column | Content |
 |---|---|
 | `orthogroup` | OrthoFinder orthogroup ID |
-| `zone` | `shared`, or `MS_only` / `MO_only` when only one species has members |
+| `zone` | `shared`, or `SP1_only` / `SP2_only` when only one species has members |
 | `status` | shared orthogroups only: `syntenic_ortholog`, `evaluable_not_syntenic` or `not_evaluable` ([method](method.md#7-classify-the-orthogroups)) |
-| `direction` | species from which the confirmed pairs were found: `MS->MO`, `MO->MS`, or both joined by `+` |
+| `direction` | species from which the confirmed pairs were found: `SP1->SP2`, `SP2->SP1`, or both joined by `+` |
 | `n_MS`, `n_MO` | number of sequences of each species |
 | `tree` | `yes` if OrthoFinder built a gene tree |
 | `q_value` | smallest q-value of its members' positional hits |
 | `tree_orthologs` | confirmed pairs also called orthologous by the OrthoFinder gene trees, as `k/n` |
-| `pairs` | confirmed pairs, `MS id|MO id`, separated by `;` |
+| `pairs` | confirmed pairs, `SP1 id|SP2 id`, separated by `;` |
 
 ### `pairs.tsv`: one row per confirmed pair
 
 | Column | Content |
 |---|---|
 | `orthogroup` | orthogroup of the pair |
-| `MS_id`, `MS_chr`, `MS_start`, `MS_end`, `MS_strand` | reference sequence and its position |
-| `MO_id`, `MO_chr`, `MO_start`, `MO_end`, `MO_strand` | query sequence and its position (after lifting) |
-| `found_from` | test that found the pair: `MS->MO`, `MO->MS`, or both joined by `+` |
+| `SP1_id`, `SP1_chr`, `SP1_start`, `SP1_end`, `SP1_strand` | reference sequence and its position |
+| `SP2_id`, `SP2_chr`, `SP2_start`, `SP2_end`, `SP2_strand` | query sequence and its position (after lifting) |
+| `found_from` | test that found the pair: `SP1->SP2`, `SP2->SP1`, or both joined by `+` |
 | `p_value`, `q_value` | of the positional hit (the smaller one when found from both sides) |
 | `tree_orthology` | `ortholog` if the OrthoFinder gene trees also call the pair orthologous, `not_ortholog` if not, empty when OrthoFinder wrote no orthologue table |
 
@@ -72,7 +72,7 @@ Strand is the orientation of the sequence, as given to OrthoFinder, relative to 
 | `id` | sequence ID |
 | `species` | species key |
 | `orthogroup` | orthogroup, empty if unassigned |
-| `zone` | `shared`, `MS_only`, `MO_only`, `MS_unassigned` or `MO_unassigned` |
+| `zone` | `shared`, `SP1_only`, `SP2_only`, `SP1_unassigned` or `SP2_unassigned` |
 | `og_status`, `og_direction` | `status` and `direction` of its orthogroup (shared only) |
 | `class` | result of its positional test ([classes](method.md#4-test-the-position-of-every-sequence)) |
 | `evidence` | `flank_anchors` when both anchors are within `flank` (1 kb) of the sequence, `bracketing_anchors` when further away (up to `gapmax`) |
