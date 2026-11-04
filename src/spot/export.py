@@ -9,7 +9,8 @@ from .classify import SYNTENIC, RunResult
 from .fasta import write_fasta
 from .locate import Location
 from .orthofinder import OrthoFinderRun
-from .positional import SYNTENIC_ORTHOLOG
+from .positional import NOT_SIGNIFICANT, SYNTENIC_ORTHOLOG
+from .trees import ORTHOLOG, concordance
 
 SEQUENCE_COLUMNS = [
     "id",
@@ -37,6 +38,8 @@ SEQUENCE_COLUMNS = [
     "orthologs_in_window",
     "others_in_window",
     "unconfirmed",
+    "p_value",
+    "q_value",
     "flank_left_bp",
     "flank_right_bp",
     "flank_back_left_bp",
@@ -55,6 +58,17 @@ def pair_directions(result: RunResult, og: str) -> dict[tuple[str, str], str]:
                 key = (g, o) if sp == ref else (o, g)
                 found.setdefault(key, []).append(f"{sp}->{other}")
     return {k: "+".join(v) for k, v in found.items()}
+
+
+def pair_values(result: RunResult, a: str, b: str) -> tuple[float | None, float | None]:
+    """Smallest p- and q-value of the tests that found the pair (from either side)."""
+    found = [
+        t for g, o in ((a, b), (b, a)) if o in (t := result.tests[g]).orthologs and t.q_value is not None
+    ]
+    if not found:
+        return None, None
+    best = min(found, key=lambda t: t.q_value or 0.0)
+    return best.p_value, best.q_value
 
 
 def export_run(
@@ -101,6 +115,8 @@ def export_run(
                         ",".join(t.orthologs),
                         ",".join(t.others),
                         ",".join(t.unconfirmed),
+                        _number(t.p_value),
+                        _number(t.q_value),
                         _blank(t.flank_left),
                         _blank(t.flank_right),
                         _blank(t.flank_back_left),
@@ -112,9 +128,30 @@ def export_run(
 
     with open(folder / "orthogroups.tsv", "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t", lineterminator="\n")
-        w.writerow(["orthogroup", "zone", "status", "direction", f"n_{ref}", f"n_{qry}", "tree", "pairs"])
+        w.writerow(
+            [
+                "orthogroup",
+                "zone",
+                "status",
+                "direction",
+                f"n_{ref}",
+                f"n_{qry}",
+                "tree",
+                "q_value",
+                "tree_orthologs",
+                "pairs",
+            ]
+        )
         for og in run.orthogroups.values():
-            pairs = ";".join(f"{a}|{b}" for a, b in result.pairs.get(og.id, []))
+            og_pairs = result.pairs.get(og.id, [])
+            pairs = ";".join(f"{a}|{b}" for a, b in og_pairs)
+            q = [
+                t.q_value
+                for sp in (ref, qry)
+                for g in og.members[sp]
+                if (t := result.tests[g]).q_value is not None
+            ]
+            agree = sum(concordance(p, result.orthologues) == ORTHOLOG for p in og_pairs)
             w.writerow(
                 [
                     og.id,
@@ -124,6 +161,8 @@ def export_run(
                     len(og.members[ref]),
                     len(og.members[qry]),
                     "yes" if og.id in run.trees else "no",
+                    _number(min(q)) if q else "",
+                    f"{agree}/{len(og_pairs)}" if og_pairs and result.orthologues is not None else "",
                     pairs,
                 ]
             )
@@ -144,12 +183,16 @@ def export_run(
                 f"{qry}_end",
                 f"{qry}_strand",
                 "found_from",
+                "p_value",
+                "q_value",
+                "tree_orthology",
             ]
         )
         for og_id, og_pairs in result.pairs.items():
             directions = pair_directions(result, og_id)
             for a, b in og_pairs:
                 la, lb = locations[a], locations[b]
+                p_pair, q_pair = pair_values(result, a, b)
                 w.writerow(
                     [
                         og_id,
@@ -164,6 +207,9 @@ def export_run(
                         lb.end,
                         lb.strand,
                         directions[(a, b)],
+                        _number(p_pair),
+                        _number(q_pair),
+                        concordance((a, b), result.orthologues),
                     ]
                 )
 
@@ -212,6 +258,25 @@ def summary(result: RunResult) -> str:
     for zone in sorted({z for z, _ in table}):
         parts = ", ".join(f"{k}={n}" for (z, k), n in sorted(table.items()) if z == zone)
         lines.append(f"  {zone:24s} {parts}")
+    family = [t for t in result.tests.values() if t.q_value is not None]
+    significant = sum(t.klass != NOT_SIGNIFICANT for t in family)
+    lines += [
+        "",
+        f"positional hits: {len(family)}, significant {significant} "
+        f"(Benjamini-Hochberg q <= {result.alpha:g})",
+    ]
+    if result.orthologues is not None:
+        pairs = [p for og_pairs in result.pairs.values() for p in og_pairs]
+        agree = sum(concordance(p, result.orthologues) == ORTHOLOG for p in pairs)
+        lines.append(f"confirmed pairs also orthologous in the OrthoFinder gene trees: {agree}/{len(pairs)}")
+    cal = result.calibration
+    if cal is not None:
+        lines.append(
+            f"calibration ({cal.permutations} orthogroup-label permutations): {cal.observed} hits observed, "
+            f"{cal.null_mean:.1f} expected by chance "
+            f"(sd {cal.null_sd:.1f}, 95th percentile {cal.null_p95:.0f}); "
+            f"expected false share {cal.expected_false:.3f}"
+        )
     evidence = Counter(
         (t.species, t.evidence, t.block_type) for t in result.tests.values() if t.klass == SYNTENIC_ORTHOLOG
     )
@@ -223,6 +288,33 @@ def summary(result: RunResult) -> str:
 def _header(run: OrthoFinderRun, gene: str) -> str:
     description = run.genes[gene].description
     return f"{gene} {description}" if description else gene
+
+
+def write_calibration(path: Path, results: list[RunResult]) -> None:
+    rows = [r.calibration for r in results if r.calibration is not None]
+    if not rows:
+        return
+    with open(path, "w", newline="") as fh:
+        w = csv.writer(fh, delimiter="\t", lineterminator="\n")
+        w.writerow(
+            ["run", "observed_hits", "permutations", "null_mean", "null_sd", "null_p95", "expected_false"]
+        )
+        for c in rows:
+            w.writerow(
+                [
+                    c.run,
+                    c.observed,
+                    c.permutations,
+                    f"{c.null_mean:.2f}",
+                    f"{c.null_sd:.2f}",
+                    f"{c.null_p95:.1f}",
+                    f"{c.expected_false:.4f}",
+                ]
+            )
+
+
+def _number(value: float | None) -> str:
+    return "" if value is None else f"{value:.3g}"
 
 
 def _blank(value: int | None) -> object:

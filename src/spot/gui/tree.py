@@ -2,84 +2,40 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from io import StringIO
 
+from Bio import Phylo
+from Bio.Phylo.BaseTree import Clade
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtWidgets import QLabel, QScrollArea, QVBoxLayout, QWidget
 
 
-@dataclass
-class Node:
-    name: str = ""
-    length: float = 0.0
-    children: list[Node] = field(default_factory=list)
-    x: float = 0.0
-    y: float = 0.0
-
-    def leaves(self) -> list[Node]:
-        if not self.children:
-            return [self]
-        return [leaf for child in self.children for leaf in child.leaves()]
-
-
-def parse_newick(text: str) -> Node:
-    """Parse a Newick string (names, branch lengths, internal labels, quoted names)."""
-    text = text.strip().rstrip(";")
-    pos = 0
-
-    def name() -> str:
-        nonlocal pos
-        if pos < len(text) and text[pos] == "'":
-            end = text.index("'", pos + 1)
-            value, pos = text[pos + 1 : end], end + 1
-            return value
-        start = pos
-        while pos < len(text) and text[pos] not in ",():;":
-            pos += 1
-        return text[start:pos].strip()
-
-    def node() -> Node:
-        nonlocal pos
-        current = Node()
-        if pos < len(text) and text[pos] == "(":
-            pos += 1
-            current.children.append(node())
-            while text[pos] == ",":
-                pos += 1
-                current.children.append(node())
-            if text[pos] != ")":
-                raise ValueError(f"expected ')' at {pos}")
-            pos += 1
-        current.name = name()
-        if pos < len(text) and text[pos] == ":":
-            pos += 1
-            start = pos
-            while pos < len(text) and text[pos] not in ",();":
-                pos += 1
-            current.length = float(text[start:pos] or 0)
-        return current
-
-    root = node()
+def read_newick(text: str) -> Clade:
+    """Root clade of a Newick string (Biopython)."""
+    tree = Phylo.read(StringIO(text.strip()), "newick")  # type: ignore[attr-defined, no-untyped-call]
+    root: Clade = tree.root
     return root
 
 
-def layout(root: Node) -> None:
-    """x = distance from the root; y = leaf order, parents centred on their children."""
+def layout(root: Clade) -> dict[Clade, tuple[float, float]]:
+    """(x, y) of every clade: x = distance from the root, y = leaf order, parents centred on children."""
+    pos: dict[Clade, tuple[float, float]] = {}
     leaves = 0
 
-    def walk(n: Node, depth: float) -> None:
+    def walk(clade: Clade, depth: float) -> float:
         nonlocal leaves
-        n.x = depth
-        if not n.children:
-            n.y = leaves
+        if not clade.clades:
+            y = float(leaves)
             leaves += 1
-            return
-        for child in n.children:
-            walk(child, depth + max(child.length, 0.0))
-        n.y = (n.children[0].y + n.children[-1].y) / 2
+        else:
+            ys = [walk(c, depth + max(c.branch_length or 0.0, 0.0)) for c in clade.clades]
+            y = (ys[0] + ys[-1]) / 2
+        pos[clade] = (depth, y)
+        return y
 
     walk(root, 0.0)
+    return pos
 
 
 class TreeView(QWidget):
@@ -107,34 +63,45 @@ class TreeView(QWidget):
         self, newick: str, species_of: dict[str, str], colors: dict[str, str], highlight: set[str], title: str
     ) -> None:
         try:
-            root = parse_newick(newick)
-        except (ValueError, IndexError) as e:
+            root = read_newick(newick)
+        except (ValueError, IndexError, Phylo.NewickIO.NewickError) as e:
             self.clear(f"Cannot read this tree: {e}")
             return
-        layout(root)
-        leaves = root.leaves()
-        width = max(n.x for n in leaves) or 1.0
+        pos = layout(root)
+        leaves: list[Clade] = root.get_terminals()  # type: ignore[no-untyped-call]
+        width = max(pos[n][0] for n in leaves) or 1.0
         height_in = max(2.5, 0.17 * len(leaves) + 0.8)
         fig = Figure(figsize=(5.5, height_in), dpi=100)
         ax = fig.add_axes((0.02, 0.4 / height_in, 0.62, 1 - 0.8 / height_in))
 
-        def draw(n: Node) -> None:
-            for child in n.children:
-                ax.plot([n.x, n.x], [n.y, child.y], color="#555555", lw=0.8, solid_capstyle="butt")
-                ax.plot([n.x, child.x], [child.y, child.y], color="#555555", lw=0.8, solid_capstyle="butt")
+        def draw(n: Clade) -> None:
+            x, y = pos[n]
+            for child in n.clades:
+                cx, cy = pos[child]
+                ax.plot([x, x], [y, cy], color="#555555", lw=0.8, solid_capstyle="butt")
+                ax.plot([x, cx], [cy, cy], color="#555555", lw=0.8, solid_capstyle="butt")
                 draw(child)
-            if n.children and n.name and _is_number(n.name):
-                ax.text(n.x, n.y, f" {n.name}", fontsize=6, color="#888888", va="center")
+            support = n.confidence if n.confidence is not None else n.name
+            if n.clades and support is not None and _is_number(str(support)):
+                ax.text(
+                    x,
+                    y,
+                    f" {support:g}" if isinstance(support, float) else f" {support}",
+                    fontsize=6,
+                    color="#888888",
+                    va="center",
+                )
 
         draw(root)
         for leaf in leaves:
+            lx, ly = pos[leaf]
             sp = species_of.get(leaf.name, "")
             color = colors.get(sp, "#333333")
             picked = leaf.name in highlight
-            ax.plot(leaf.x, leaf.y, "o", ms=4 if picked else 2.5, color=color, zorder=3)
+            ax.plot(lx, ly, "o", ms=4 if picked else 2.5, color=color, zorder=3)
             ax.text(
-                leaf.x + width * 0.02,
-                leaf.y,
+                lx + width * 0.02,
+                ly,
                 leaf.name,
                 fontsize=7,
                 va="center",

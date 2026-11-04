@@ -51,6 +51,11 @@ threads: auto
 #   min_bp: 1000
 #   max_offset: 500
 
+# stats:
+#   alpha: 0.05                    # false discovery rate (Benjamini-Hochberg)
+#   permutations: 100              # orthogroup-label permutations for the calibration (0 = none)
+#   seed: 1
+
 # blastn: {evalue: 1e-10, perc_identity: 80}
 # minimap2: {x: asm10}
 # syri: {nosnp: true}

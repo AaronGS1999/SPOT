@@ -8,6 +8,7 @@ outdir/
 ├── run.yaml                  settings in force
 ├── versions.tsv              version and path of every program
 ├── homology.tsv              homologous chromosome pairs
+├── calibration.tsv           hits observed and expected by chance, per run
 ├── venn_panel.pdf|png|svg    Venn diagrams of all runs side by side
 ├── synteny.pdf|png           homologous chromosomes with the confirmed pairs
 ├── genome/
@@ -43,10 +44,12 @@ All coordinates are 1-based and inclusive. Tables are tab-separated with a heade
 |---|---|
 | `orthogroup` | OrthoFinder orthogroup ID |
 | `zone` | `shared`, or `MS_only` / `MO_only` when only one species has members |
-| `status` | shared orthogroups only: `syntenic_ortholog`, `evaluable_not_syntenic` or `not_evaluable` ([method](method.md#6-classify-the-orthogroups)) |
+| `status` | shared orthogroups only: `syntenic_ortholog`, `evaluable_not_syntenic` or `not_evaluable` ([method](method.md#7-classify-the-orthogroups)) |
 | `direction` | species from which the confirmed pairs were found: `MS->MO`, `MO->MS`, or both joined by `+` |
 | `n_MS`, `n_MO` | number of sequences of each species |
 | `tree` | `yes` if OrthoFinder built a gene tree |
+| `q_value` | smallest q-value of its members' positional hits |
+| `tree_orthologs` | confirmed pairs also called orthologous by the OrthoFinder gene trees, as `k/n` |
 | `pairs` | confirmed pairs, `MS id|MO id`, separated by `;` |
 
 ### `pairs.tsv`: one row per confirmed pair
@@ -57,6 +60,8 @@ All coordinates are 1-based and inclusive. Tables are tab-separated with a heade
 | `MS_id`, `MS_chr`, `MS_start`, `MS_end`, `MS_strand` | reference sequence and its position |
 | `MO_id`, `MO_chr`, `MO_start`, `MO_end`, `MO_strand` | query sequence and its position (after lifting) |
 | `found_from` | test that found the pair: `MS->MO`, `MO->MS`, or both joined by `+` |
+| `p_value`, `q_value` | of the positional hit (the smaller one when found from both sides) |
+| `tree_orthology` | `ortholog` if the OrthoFinder gene trees also call the pair orthologous, `not_ortholog` if not, empty when OrthoFinder wrote no orthologue table |
 
 Strand is the orientation of the sequence, as given to OrthoFinder, relative to the genome.
 
@@ -81,7 +86,9 @@ Strand is the orientation of the sequence, as given to OrthoFinder, relative to 
 | `window_aligned_frac` | for empty windows, fraction covered by SyRI alignments |
 | `orthologs_in_window` | members of the same orthogroup in the window, confirmed by their flanks |
 | `others_in_window` | other sequences of the run in the window |
-| `unconfirmed` | members of the same orthogroup in the window whose flanks did not align |
+| `unconfirmed` | members of the same orthogroup in the window that were not confirmed: their flanks did not align, or the hit was not significant |
+| `p_value` | probability of finding a member of the orthogroup in a window this long by chance ([method](method.md#5-test-the-significance-of-each-hit)) |
+| `q_value` | Benjamini-Hochberg q-value of the hit within its run |
 | `flank_left_bp`, `flank_right_bp` | colinear aligned bases of this sequence's left and right flank (best candidate) |
 | `flank_back_left_bp`, `flank_back_right_bp` | the same for the candidate's flanks (reciprocal check) |
 | `flank_orientation` | `direct`, or `inverted` when the pair lies inside an inversion |
@@ -95,14 +102,26 @@ Strand is the orientation of the sequence, as given to OrthoFinder, relative to 
 | `syn_bp` | bases of the reference chromosome in syntenic alignments with this query chromosome |
 | `fraction_of_reference_syn` | share of all syntenic bases of the reference chromosome |
 
+### `calibration.tsv`: one row per run
+
+| Column | Content |
+|---|---|
+| `run` | OrthoFinder run |
+| `observed_hits` | windows holding a member of the same orthogroup, before significance and flanks |
+| `permutations` | orthogroup-label permutations |
+| `null_mean`, `null_sd`, `null_p95` | hits after shuffling the labels: mean, standard deviation and 95th percentile |
+| `expected_false` | `null_mean / observed_hits`: share of the hits expected by chance |
+
 ### `summary.txt`
 
 Counts per run: orthogroups and sequences per zone, shared orthogroups by status and direction, confirmed
-pairs, every sequence by zone and class, and the syntenic tests by evidence and block type.
+pairs, every sequence by zone and class, positional hits and how many are significant, agreement of the
+confirmed pairs with the gene trees, the calibration, and the syntenic tests by evidence and block type.
 
 ### `versions.tsv`
 
-Program, version and path of SPOT, Python, minimap2, SyRI, BLASTN, Java, Gepard and the Python libraries.
+Program, version and path of SPOT, Python, minimap2, SyRI, BLASTN, Java, Gepard and the Python libraries
+(including SciPy and Biopython).
 
 ## Figures
 

@@ -20,15 +20,15 @@ ORTHOGROUPS = (
     "Orthogroup\tAA_set\tBB_set\r\nOG0000000\tAA_1\tBB_1\r\nOG0000001\tAA_2\tBB_2\r\nOG0000002\tAA_3\t\r\n"
 )
 SYRI = (
-    "chr1\t1\t60000\t-\t-\tchr1\t1\t60000\tSYN1\t-\tSYN\t-\n"
-    "chr1\t1\t60000\t-\t-\tchr1\t1\t60000\tSYNAL1\tSYN1\tSYNAL\t-\n"
+    "chr1\t1\t600000\t-\t-\tchr1\t1\t600000\tSYN1\t-\tSYN\t-\n"
+    "chr1\t1\t600000\t-\t-\tchr1\t1\t600000\tSYNAL1\tSYN1\tSYNAL\t-\n"
 )
 
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
     rng = random.Random(7)
-    chrom = "".join(rng.choice("ACGT") for _ in range(60_000))
+    chrom = "".join(rng.choice("ACGT") for _ in range(600_000))
     (tmp_path / "genomes").mkdir()
     write_fasta(tmp_path / "genomes" / "a.fa", [("chr1", chrom)])
     write_fasta(tmp_path / "genomes" / "b.fa", [("chr1", chrom)])
@@ -81,6 +81,9 @@ def test_run(project: Path) -> None:
     }
     assert result.pairs["OG0000000"] == [("AA_1", "BB_1")]
     assert analysis.locations["BB_1"].strand == "-"
+    hit = result.tests["AA_1"]
+    assert hit.p_value is not None and hit.q_value is not None and hit.q_value <= 0.05
+    assert result.calibration is not None and result.calibration.observed == 2
 
     out = project / "out" / "NUMT"
     assert (out / "syntenic_ortholog" / "OG0000000" / "OG0000000.pairs.fa").is_file()

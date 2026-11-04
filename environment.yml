@@ -14,6 +14,8 @@ dependencies:
   - pandas<3  # SyRI 1.8 is not tested with pandas 3
   - pyfaidx>=0.8
   - matplotlib-base>=3.8
+  - scipy>=1.11
+  - biopython>=1.81
   - pyside6>=6.7
   - pytest>=8
   - pytest-qt>=4.4

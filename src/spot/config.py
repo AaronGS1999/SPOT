@@ -100,6 +100,14 @@ class Validation(_Section):
     max_offset: int = _f(500, "how far (bp) a flank HSP may run past the other locus", ge=0)
 
 
+class Stats(_Section):
+    alpha: float = _f(
+        0.05, "false discovery rate: candidates with q above it are not significant", gt=0, le=1
+    )
+    permutations: int = _f(100, "orthogroup-label permutations for the calibration (0 = none)", ge=0)
+    seed: int = _f(1, "seed of the permutations", ge=0)
+
+
 class Dotplots(_Section):
     pairs: bool = _f(True, "a Gepard dotplot for every confirmed pair")
     genome: bool = _f(True, "a whole-genome dotplot of the SyRI alignments")
@@ -189,6 +197,7 @@ class Config(_Section):
     gepard: Gepard = Field(default_factory=Gepard)
     anchors: Anchors = Field(default_factory=Anchors)
     validation: Validation = Field(default_factory=Validation)
+    stats: Stats = Field(default_factory=Stats)
     dotplots: Dotplots = Field(default_factory=Dotplots)
     figures: Figures = Field(default_factory=Figures)
 
@@ -233,6 +242,7 @@ SECTIONS: dict[str, type[BaseModel]] = {
     "gepard": Gepard,
     "anchors": Anchors,
     "validation": Validation,
+    "stats": Stats,
     "dotplots": Dotplots,
     "figures": Figures,
 }

@@ -130,6 +130,17 @@ class AlignedIndex:
                     merged.append([s, e])
             self._starts[chrom] = [m[0] for m in merged]
             self._ends[chrom] = [m[1] for m in merged]
+        self._total = {
+            c: sum(e - s + 1 for s, e in zip(self._starts[c], self._ends[c], strict=True))
+            for c in self._starts
+        }
+
+    def total(self, chrom: str) -> int:
+        """Aligned bases of a chromosome."""
+        return self._total.get(chrom, 0)
+
+    def chromosomes(self) -> list[str]:
+        return list(self._starts)
 
     def covered(self, chrom: str, start: int, end: int) -> int:
         """Bases of [start, end] (1-based, inclusive) inside aligned intervals."""

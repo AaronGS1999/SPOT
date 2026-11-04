@@ -12,10 +12,11 @@ from .syri import AlignedIndex
 
 SYNTENIC_ORTHOLOG = "syntenic_ortholog"
 FLANKS_NOT_CONFIRMED = "syntenic_locus_flanks_not_confirmed"
+NOT_SIGNIFICANT = "syntenic_locus_not_significant"  # a member is in the window, but no more than by chance
 OTHER = "syntenic_locus_other"
 EMPTY_ALIGNED = "empty_locus_aligned"  # the orthologous locus is aligned and holds no sequence of this set
 EMPTY_GAP = "empty_locus_gap"  # the projected window is mostly unaligned, so absence cannot be told
-EVALUABLE = (SYNTENIC_ORTHOLOG, OTHER, EMPTY_ALIGNED, FLANKS_NOT_CONFIRMED)
+EVALUABLE = (SYNTENIC_ORTHOLOG, OTHER, EMPTY_ALIGNED, FLANKS_NOT_CONFIRMED, NOT_SIGNIFICANT)
 NOT_EVALUABLE = (
     "no_anchor",
     "anchors_too_far",
@@ -52,6 +53,8 @@ class Test:
     flank_back_left: int | None = None
     flank_back_right: int | None = None
     inverted: bool | None = None
+    p_value: float | None = None
+    q_value: float | None = None
 
 
 class GeneIndex:

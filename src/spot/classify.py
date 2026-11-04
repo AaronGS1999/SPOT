@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from .orthofinder import OrthoFinderRun
 from .positional import EVALUABLE, SYNTENIC_ORTHOLOG, Test
+from .stats import Calibration
 
 SYNTENIC = "syntenic_ortholog"
 NOT_SYNTENIC = "evaluable_not_syntenic"
@@ -20,6 +21,9 @@ class RunResult:
     status: dict[str, str] = field(default_factory=dict)
     direction: dict[str, str] = field(default_factory=dict)
     pairs: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    alpha: float = 0.05
+    calibration: Calibration | None = None
+    orthologues: set[tuple[str, str]] | None = None  # pairs called orthologous by the OrthoFinder gene trees
 
     def zone(self, gene: str) -> str:
         g = self.run.genes[gene]

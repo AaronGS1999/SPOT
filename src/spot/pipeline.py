@@ -7,18 +7,18 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import __version__, orthofinder, plots, positional, syri, tools
+from . import __version__, orthofinder, plots, positional, stats, syri, tools, trees
 from .anchors import AnchorIndex
 from .cache import Checkpoints, digest, key_of
 from .classify import SYNTENIC, RunResult, classify
 from .config import Config, dump
 from .dotplot import GepardPlotter
 from .errors import ConfigError, ToolError
-from .export import export_run
+from .export import export_run, write_calibration
 from .locate import Genome, Location, locate
 from .log import add_file
 from .orthofinder import OrthoFinderRun
-from .positional import FLANKS_NOT_CONFIRMED, SYNTENIC_ORTHOLOG, GeneIndex, Test
+from .positional import EVALUABLE, FLANKS_NOT_CONFIRMED, NOT_SIGNIFICANT, SYNTENIC_ORTHOLOG, GeneIndex, Test
 from .progress import Progress, Reporter, silent
 from .syri import AlignedIndex, Alignment
 from .util import natural_key
@@ -97,6 +97,16 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None, progress: Pr
     }
     aligned = {ref: AlignedIndex(alignments, "reference"), qry: AlignedIndex(alignments, "query")}
     log.info("anchors (%s): %d alignments", ", ".join(kinds), len(anchors[ref]))
+    # where a projected window can land: the aligned part of the homologous chromosomes of the other genome
+    sides = {ref: "reference", qry: "query"}
+    spaces = {
+        sp: stats.NullSpace(
+            aligned[other[sp]],
+            stats.partners(homologous, sides[sp]) if config.anchors.same_chromosome else None,
+        )
+        for sp in (ref, qry)
+    }
+    calibrations: dict[str, stats.Calibration | None] = {}
     tests: dict[str, dict[str, Test]] = {}
     jobs: list[tuple[Location, Location]] = []
     progress("test", 0, len(runs))
@@ -113,8 +123,10 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None, progress: Pr
                 locations[g.id], same, anchors[g.species], genes[target], config.anchors, aligned[target]
             )
             tests[run.name][g.id] = t
+        calibrations[run.name] = _significance(run, tests[run.name], locations, spaces, config)
+        for t in tests[run.name].values():
             if t.klass == SYNTENIC_ORTHOLOG:
-                jobs.extend((locations[g.id], locations[o]) for o in t.orthologs)
+                jobs.extend((locations[t.gene], locations[o]) for o in t.orthologs)
         progress("test", n_run, len(runs))
 
     if config.validation.enabled:
@@ -141,9 +153,72 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None, progress: Pr
                     t.klass = FLANKS_NOT_CONFIRMED
 
     results = [classify(run, tests[run.name], ref, qry) for run in runs]
+    for result in results:
+        result.alpha = config.stats.alpha
+        result.calibration = calibrations[result.run.name]
+        result.orthologues = trees.orthologues(result.run, ref, qry)
     return Analysis(
         config, runs, sequences, genomes, locations, syri_out, alignments, blocks, homologous, results
     )
+
+
+def _significance(
+    run: OrthoFinderRun,
+    tests: dict[str, Test],
+    locations: dict[str, Location],
+    spaces: dict[str, stats.NullSpace],
+    config: Config,
+) -> stats.Calibration | None:
+    """P- and q-values of the positional hits of one run; hits above the FDR become NOT_SIGNIFICANT.
+
+    The family is every evaluable test with a projected window: a window with no member of the orthogroup
+    counts with p = 1, so the correction covers all the windows looked at, not only the hits.
+    """
+    family = [
+        t
+        for t in tests.values()
+        if run.genes[t.gene].assigned and t.klass in EVALUABLE and t.window_start is not None
+    ]
+    other = {config.reference: config.query, config.query: config.reference}
+    pvalues = []
+    for t in family:
+        if t.klass == SYNTENIC_ORTHOLOG:
+            g = run.genes[t.gene]
+            members = (locations[m] for m in run.orthogroups[g.orthogroup].members[other[g.species]])
+            t.p_value = stats.pvalue(t, locations[t.gene], members, spaces[g.species])
+            pvalues.append(t.p_value)
+        else:
+            pvalues.append(1.0)
+    for t, q in zip(family, stats.adjust(pvalues), strict=True):
+        if t.klass != SYNTENIC_ORTHOLOG:
+            continue
+        t.q_value = q
+        if q > config.stats.alpha:
+            t.unconfirmed, t.orthologs = t.orthologs, []
+            t.klass = NOT_SIGNIFICANT
+    hits = sum(t.klass in (SYNTENIC_ORTHOLOG, NOT_SIGNIFICANT) for t in family)
+    log.info(
+        "%s: %d windows tested, %d with a member of the orthogroup, %d significant (q <= %g)",
+        run.name,
+        len(family),
+        hits,
+        sum(t.klass == SYNTENIC_ORTHOLOG for t in family),
+        config.stats.alpha,
+    )
+    if not config.stats.permutations:
+        return None
+    labels = {g.id: f"{g.species}/{g.orthogroup}" for g in run.genes.values() if g.assigned}
+    windows = {t.gene: t.orthologs + t.unconfirmed + t.others for t in family}
+    calibration = stats.calibrate(run.name, labels, windows, config.stats.permutations, config.stats.seed)
+    log.info(
+        "%s: calibration, %d hits observed, %.1f expected by chance (sd %.1f, %d permutations)",
+        run.name,
+        calibration.observed,
+        calibration.null_mean,
+        calibration.null_sd,
+        calibration.permutations,
+    )
+    return calibration
 
 
 def run(config: Config, progress: Progress | None = None) -> Analysis:
@@ -164,6 +239,7 @@ def run(config: Config, progress: Progress | None = None) -> Analysis:
         log.info("threads: %d", config.n_threads)
         analysis = analyse(config, Checkpoints(out, enabled=config.resume), progress)
         _write_homology(out / "homology.tsv", analysis)
+        write_calibration(out / "calibration.tsv", analysis.results)
         species = [plots.SpeciesStyle(k, config.species[k].label) for k in (config.reference, config.query)]
         styles = _run_styles(config, analysis.runs)
         palette = plots.Palette.from_config(config.figures)

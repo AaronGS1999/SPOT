@@ -8,8 +8,9 @@
 
 SPOT tells which OrthoFinder orthogroups shared by two species sit at the same place in both genomes.
 For every sequence it finds the syntenic anchors on each side, projects them onto the homologous
-chromosome of the other species, looks for a member of the same orthogroup there and confirms the pair
-by aligning the flanks of both loci. It works with any sequence that has genomic coordinates: nuclear
+chromosome of the other species, looks for a member of the same orthogroup there, tests whether finding
+it is more than chance (Benjamini-Hochberg FDR) and confirms the pair by aligning the flanks of both loci.
+Each pair is also compared with the orthologues that OrthoFinder infers from its gene trees. It works with any sequence that has genomic coordinates: nuclear
 insertions of organelle DNA (NUMTs, NUPTs), transposable elements, genes or non-coding RNAs.
 
 - [How it works](docs/method.md), step by step
@@ -90,9 +91,18 @@ If you use SPOT, please cite this repository and the tools it relies on (`CITATI
 
 ## References
 
+Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate: A practical and powerful approach
+to multiple testing. *Journal of the Royal Statistical Society: Series B (Methodological), 57*(1), 289–300.
+https://doi.org/10.1111/j.2517-6161.1995.tb02031.x
+
 Camacho, C., Coulouris, G., Avagyan, V., Ma, N., Papadopoulos, J., Bealer, K., & Madden, T. L. (2009).
 BLAST+: Architecture and applications. *BMC Bioinformatics, 10*, 421.
 https://doi.org/10.1186/1471-2105-10-421
+
+Cock, P. J. A., Antao, T., Chang, J. T., Chapman, B. A., Cox, C. J., Dalke, A., Friedberg, I., Hamelryck, T.,
+Kauff, F., Wilczynski, B., & de Hoon, M. J. L. (2009). Biopython: Freely available Python tools for
+computational molecular biology and bioinformatics. *Bioinformatics, 25*(11), 1422–1423.
+https://doi.org/10.1093/bioinformatics/btp163
 
 Emms, D. M., & Kelly, S. (2019). OrthoFinder: Phylogenetic orthology inference for comparative genomics.
 *Genome Biology, 20*, 238. https://doi.org/10.1186/s13059-019-1832-y
@@ -130,3 +140,9 @@ using pyfaidx* (PeerJ PrePrints 3:e970v1). https://doi.org/10.7287/peerj.preprin
 The Qt Company. (2024). *Qt for Python (PySide6)* [Computer software]. https://doc.qt.io/qtforpython-6/
 
 Van Rossum, G., & Drake, F. L. (2009). *Python 3 reference manual*. CreateSpace.
+
+Virtanen, P., Gommers, R., Oliphant, T. E., Haberland, M., Reddy, T., Cournapeau, D., Burovski, E., Peterson,
+P., Weckesser, W., Bright, J., van der Walt, S. J., Brett, M., Wilson, J., Millman, K. J., Mayorov, N.,
+Nelson, A. R. J., Jones, E., Kern, R., Larson, E., … SciPy 1.0 Contributors. (2020). SciPy 1.0: Fundamental
+algorithms for scientific computing in Python. *Nature Methods, 17*(3), 261–272.
+https://doi.org/10.1038/s41592-019-0686-2

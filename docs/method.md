@@ -5,7 +5,7 @@ position in both genomes? A shared orthogroup only says that sequences are simil
 place, between the same conserved neighbours, is what makes two copies positional orthologs, that is,
 descendants of a single insertion or gene present in the common ancestor.
 
-The analysis has six steps. Names in `code` are settings (see `examples/config.yaml`).
+The analysis has seven steps. Names in `code` are settings (see `examples/config.yaml`).
 
 ## 1. Read the orthogroups
 
@@ -63,8 +63,9 @@ Each sequence ends in one class:
 
 | Class | Meaning | Evaluable |
 |---|---|---|
-| `syntenic_ortholog` | a member of the same orthogroup is in the window and the flanks confirm it (step 5) | yes |
-| `syntenic_locus_flanks_not_confirmed` | a member of the same orthogroup is in the window, but the flanks do not align | yes |
+| `syntenic_ortholog` | a member of the same orthogroup is in the window, significantly, and the flanks confirm it (steps 5 and 6) | yes |
+| `syntenic_locus_not_significant` | a member of the same orthogroup is in the window, but no more often than expected by chance (step 5) | yes |
+| `syntenic_locus_flanks_not_confirmed` | a member of the same orthogroup is in the window, but the flanks do not align (step 6) | yes |
 | `syntenic_locus_other` | the window holds sequences of the run, none of the same orthogroup | yes |
 | `empty_locus_aligned` | the window holds no sequence and at least `min_aligned_frac` (50 %) of it is aligned: the locus exists and is empty | yes |
 | `empty_locus_gap` | the window holds no sequence but lies mostly in unaligned sequence: absence cannot be told | no |
@@ -74,7 +75,29 @@ Each sequence ends in one class:
 | `anchors_inconsistent` | the projected anchors are much further apart than the anchors themselves (more than 3 times their span plus 10 kb) | no |
 | `unplaced` | the sequence could not be located (step 2) | no |
 
-## 5. Confirm each candidate pair by its flanks
+## 5. Test the significance of each hit
+
+A member of the orthogroup may fall in the window by chance, more easily when the orthogroup is large or the
+window long. Under the null hypothesis the window lands anywhere on the aligned part of the chromosomes
+homologous to the tested sequence. It then contains a member with probability
+
+p = L / A,
+
+where A is the aligned length of those chromosomes and L the length of the positions from which a window
+would overlap a member (each member widened by the window length, overlaps merged). This is the exact
+p-value of a test that relocates the window at random, computed without sampling. The p-values of each
+OrthoFinder run are corrected for multiple testing with the Benjamini-Hochberg procedure (Benjamini &
+Hochberg, 1995), as implemented in SciPy (Virtanen et al., 2020). Every evaluable window counts, an empty
+one with p = 1, so the correction covers all the windows looked at and not only the hits. Hits with
+q > `stats.alpha` (0.05) become `syntenic_locus_not_significant` and are not tested further.
+
+**Calibration.** As an independent check, the orthogroup labels of each species are shuffled within the
+run `stats.permutations` times (100; seeded by `stats.seed`), keeping the size of every orthogroup and the
+position of every sequence, and the windows are searched again. The number of hits expected by chance
+(mean over the permutations) against the number observed gives the share of the hits that position alone
+would produce if orthogroups carried no positional information (`calibration.tsv`).
+
+## 6. Confirm each candidate pair by its flanks
 
 Two sequences in the same window could still be independent insertions that happen to be close. Each
 candidate pair is therefore checked with BLASTN (Camacho et al., 2009). Both loci are taken with `window`
@@ -88,7 +111,7 @@ A pair is confirmed when both flanks have at least `min_bp` (1 kb) or `min_frac`
 aligned, whichever is larger. With `reciprocal` (default) the flanks of both loci must pass. The
 candidate becomes `syntenic_ortholog`; otherwise `syntenic_locus_flanks_not_confirmed`.
 
-## 6. Classify the orthogroups
+## 7. Classify the orthogroups
 
 Each shared orthogroup takes the best result of its members:
 
@@ -99,12 +122,18 @@ Each shared orthogroup takes the best result of its members:
 The direction column says from which species the pairs were found (`MS->MO`, `MO->MS` or both). Pairs
 found in both directions are the most robust.
 
+**Agreement with the gene trees.** OrthoFinder also infers orthologues by reconciling each gene tree with
+the species tree (`Orthologues/`). For every confirmed pair SPOT reports whether the tree calls it
+orthologous too (`tree_orthology`). The two lines of evidence are independent: one comes from position,
+the other from sequence evolution. A pair that the tree calls paralogous points to a duplication older
+than the split of the species, or to an error in the tree.
+
 ## Reproducibility
 
 - Every run writes the settings in force (`run.yaml`), the version of every program (`versions.tsv`) and a
   log (`spot.log`).
-- The results depend only on the inputs and settings. There is no random step, the BLASTN and Gepard work
-  is split in a fixed order, and each OrthoFinder run is tested only against its own sequences, so adding
+- The results depend only on the inputs and settings. The only random step, the calibration, is seeded
+  (`stats.seed`, combined with the name of each run), the BLASTN and Gepard work is split in a fixed order, and each OrthoFinder run is tested only against its own sequences, so adding
   or removing a run does not change the others.
 - Finished stages are kept in `outdir/.spot`, keyed by a SHA-256 of their inputs and settings. A repeated
   or interrupted run only redoes what changed.

@@ -19,7 +19,7 @@ from .errors import ToolError
 log = logging.getLogger("spot")
 
 _VERSION = re.compile(r"(\d+\.\d+(?:[.\-][0-9A-Za-z]+)*)")
-PYTHON_PACKAGES = ("pydantic", "PyYAML", "numpy", "pyfaidx", "matplotlib")
+PYTHON_PACKAGES = ("pydantic", "PyYAML", "numpy", "scipy", "biopython", "pyfaidx", "matplotlib")
 
 
 def as_args(options: Mapping[str, Any], *, single_dash: bool = False) -> list[str]:

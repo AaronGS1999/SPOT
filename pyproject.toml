@@ -14,6 +14,8 @@ dependencies = [
     "pydantic>=2.6",
     "pyyaml>=6.0",
     "numpy>=1.24",
+    "scipy>=1.11",
+    "biopython>=1.81",
     "pyfaidx>=0.8",
     "matplotlib>=3.8",
 ]
@@ -51,5 +53,5 @@ plugins = ["pydantic.mypy"]
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["pyfaidx", "pyfaidx.*"]
+module = ["pyfaidx", "pyfaidx.*", "scipy", "scipy.*", "Bio", "Bio.*"]
 ignore_missing_imports = true

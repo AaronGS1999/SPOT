@@ -445,6 +445,7 @@ class SectionForm(QGroupBox):
 
 SECTION_TITLES: dict[str, tuple[str, bool]] = {
     "anchors": ("Anchors and positional test", False),
+    "stats": ("Statistics", False),
     "validation": ("Flank validation (BLASTN)", False),
     "blastn": ("BLASTN", True),
     "dotplots": ("Dotplots", False),
