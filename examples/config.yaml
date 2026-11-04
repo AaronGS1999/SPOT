@@ -1,36 +1,67 @@
+# SPOT project. Paths are relative to this file. Commented lines show the default values.
+
 orthofinder:
-  root: data/orthofinder
-  runs:
-    run_a: {label: Run A, color: "#C1121F", unit: NUMTs}
+  root: orthofinder                # one OrthoFinder run per subfolder
+  runs:                            # runs to use, in this order (omit to use all)
+    run_a: {label: Run A, color: "#C1121F", unit: NUMTs}    # label and unit are used in the figures
     run_b: {label: Run B, color: "#1B7F3B", unit: NUPTs}
 
 species:
   SP1:
-    label: Species one
-    match: SP1
+    label: Species one             # name in the figures
+    match: SP1                     # start of its column in Orthogroups.tsv
     genome: genomes/sp1.fasta
-    centromeres: annotations/sp1_centromeres.bed
+    centromeres: annotations/sp1_centromeres.bed            # optional, synteny figure only
+    # coords: header               # or a table with the columns id, chr, start, end
+    # min_identity: 0.99
   SP2:
     label: Species two
     match: SP2
     genome: genomes/sp2.fasta
-    # coordinates in the sequence names refer to an earlier assembly
-    lift:
+    lift:                          # only if the coordinates refer to another assembly
       - lift/split.tsv
       - lift/ragtag.scaffold.agp
     strip_suffix: _RagTag
 
 reference: SP1
 query: SP2
-profile: default
+profile: default                   # default or relaxed
 outdir: spot_out
-threads: 8
+threads: auto
+# resume: true
+# syri_out: syri/syri.out          # an existing alignment of the two genomes (reference first)
 
-# reuse an existing SyRI run instead of aligning the genomes
-# syri_out: syri/syri.out
+# anchors:
+#   types: [SYN, INV]
+#   same_chromosome: true
+#   homology: auto                 # or [[chr1, chr1], [chr2, chr2a], ...]
+#   min_syn_frac: 0.1
+#   gapmax: 50000
+#   tol: 2000
+#   tol_frac: 0.1
+#   flank: 1000
+#   min_aligned_frac: 0.5
 
-# minimap2: {x: asm10}
+# validation:
+#   enabled: true
+#   reciprocal: true
+#   window: 10000
+#   min_hsp: 200
+#   min_frac: 0.2
+#   min_bp: 1000
+#   max_offset: 500
+
 # blastn: {evalue: 1e-10, perc_identity: 80}
-# anchors: {types: [SYN, INV], min_syn_frac: 0.1, tol: 2000, tol_frac: 0.1, min_aligned_frac: 0.5}
-# anchors: {homology: [[chr1, Chr1a], [chr1, Chr1b]]}   # fix the homologous pairs by hand
-# validation: {mode: colinear, reciprocal: true, window: 10000, min_frac: 0.2, min_bp: 1000, max_offset: 500}
+# minimap2: {x: asm10}
+# syri: {nosnp: true}
+# gepard: {matrix: edna.mat, word: 10}
+# dotplots: {pairs: true, genome: true}
+
+# figures:
+#   reference: "#3A3A3A"
+#   query: "#8C8C8C"
+#   syntenic: "#DCDCDC"
+#   inversion: "#F4B97A"
+#   translocation: "#B9B3E0"
+#   duplication: "#9CCBE8"
+#   centromere: "#FCEFC4"

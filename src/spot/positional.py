@@ -53,10 +53,6 @@ class Test:
     flank_back_right: int | None = None
     inverted: bool | None = None
 
-    @property
-    def evaluable(self) -> bool:
-        return self.klass in EVALUABLE
-
 
 class GeneIndex:
     def __init__(self, locations: Iterable[Location]) -> None:

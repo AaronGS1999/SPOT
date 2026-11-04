@@ -38,14 +38,17 @@ def read(path: Path) -> tuple[list[Alignment], list[Alignment]]:
     """Alignments (SYNAL, INVAL, ...) and the blocks they belong to (SYN, INV, ...) from syri.out."""
     alignments: list[Alignment] = []
     blocks: list[Alignment] = []
+    wanted = {*SYRI_CLASSES, *(c + "AL" for c in SYRI_CLASSES)}
     for n, line in enumerate(_lines(path), start=1):
+        # most lines are SNPs and indels: look at the type column (11th of 12) before splitting the rest
+        tail = line.rstrip("\n").rsplit("\t", 2)
+        if len(tail) < 3 or tail[1] not in wanted:
+            continue
         f = line.rstrip("\n").split("\t")
         if len(f) < 11:
             continue
         is_alignment = f[10].endswith("AL")
         kind = f[10].removesuffix("AL")
-        if kind not in SYRI_CLASSES:
-            continue
         block = f[9] if is_alignment else f[8]
         try:
             a = Alignment(f[0], int(f[1]), int(f[2]), f[5], int(f[6]), int(f[7]), kind, block)

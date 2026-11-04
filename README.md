@@ -1,136 +1,132 @@
-# SPOT
+<p align="center">
+  <img src="src/spot/gui/assets/spot.png" width="128" alt="SPOT">
+</p>
 
-Synteny-based Positional Orthology Test. Takes OrthoFinder orthogroups built from sequences of any kind
-(not only genes) and checks, with SyRI on a whole-genome alignment of two species, whether the members of
-each orthogroup sit at orthologous positions of homologous chromosomes.
+<h1 align="center">SPOT</h1>
+
+<p align="center">Synteny-based Positional Orthology Test</p>
+
+SPOT tells which OrthoFinder orthogroups shared by two species sit at the same place in both genomes.
+For every sequence it finds the syntenic anchors on each side, projects them onto the homologous
+chromosome of the other species, looks for a member of the same orthogroup there and confirms the pair
+by aligning the flanks of both loci. It works with any sequence that has genomic coordinates: nuclear
+insertions of organelle DNA (NUMTs, NUPTs), transposable elements, genes or non-coding RNAs.
+
+- [How it works](docs/method.md), step by step
+- [Output](docs/output.md): every table, column and figure
+- [References](#references)
 
 ## Install
 
-macOS (Apple Silicon or Intel) and Linux.
+**App** (macOS on Apple Silicon or Intel, Linux on x86-64 or ARM)
 
 ```sh
-mamba env create -f environment.yml
-mamba activate spot
+python packaging/build.py macos     # dist/SPOT.app
+python packaging/build.py linux     # dist/SPOT-linux/, then run its install.sh
+```
+
+Open SPOT like any other app. The first launch installs its tools (Python, Qt, BLAST+, minimap2, SyRI,
+Gepard and Java) in `~/.spot` (macOS) or `~/.local/share/spot` (Linux); it takes a few minutes and needs an
+internet connection. Later launches start at once.
+
+**Command line**
+
+```sh
+conda env create -f environment.yml
+conda activate spot
 pip install -e .
 spot check
 ```
 
-On Apple Silicon the environment solves natively. If the solver complains about the macOS version, prefix the
-first command with `CONDA_OVERRIDE_OSX=14.0`.
+## Use
 
-## Desktop app
+1. **Project.** Choose the folder that holds the OrthoFinder runs and press *Find runs*. Set each
+   species: its genome, and lift files if the coordinates in the sequence names were taken on another
+   assembly. The panel under each species says how many sequences fall on its genome.
+2. **Parameters.** The default profile is a sound start. Values changed in the project are marked and can
+   be reset to the profile.
+3. **Run.** *Check configuration*, then *Run SPOT*.
+4. **Results.** Tables, figures, and the dotplot and gene tree of each confirmed pair.
 
-Build the app once with `python packaging/build.py macos` (gives `dist/SPOT.app`, for Apple Silicon and
-Intel) or `python packaging/build.py linux` (gives `dist/SPOT-linux/`, run its `install.sh`). Open it like any
-other app: the first launch sets up its own environment with Python, Qt, BLAST, minimap2, SyRI, Gepard and
-Java (a few minutes, needs internet; kept in `~/.spot` or
-`~/.local/share/spot`), later launches start at once. From a development install, `spot gui` opens the same
-app.
-
-The app edits the same YAML configuration as the command line. **Project** sets the OrthoFinder folder
-(runs are found automatically; choose which to use, their labels, colours and units), the two species and
-the output folder. **Parameters** shows every engine setting with its value and whether it comes from the
-profile or from the project; only project values are saved. **Run** checks the configuration, runs the
-engine in its own process (with a progress bar per stage and Cancel) and keeps a copy of exactly what ran
-in `outdir/spot_app.yaml`. **Results** shows the summary, filterable tables, the figures and, for each
-confirmed pair, its Gepard dotplot and gene tree.
-
-## Usage
+Hover over any field for an explanation. The same project runs from the terminal:
 
 ```sh
-spot run     -c config.yaml        # whole analysis
-spot config  -c config.yaml        # resolved configuration
-spot inspect -c config.yaml        # what SPOT reads from each OrthoFinder run
-spot check   -c config.yaml        # external tools needed by this configuration
-spot profiles                      # built-in profiles
-spot profiles relaxed
+spot run -c project.yaml                     # whole analysis
+spot run -c project.yaml -p relaxed -t 8     # another profile, 8 threads
+spot config -c project.yaml                  # settings in force
+spot inspect -c project.yaml                 # what is read from each OrthoFinder run
+spot profiles                                # built-in profiles
 ```
 
-See `examples/config.yaml`. Settings are applied in this order, each overriding the previous one:
-built-in defaults, profile, configuration file, command line.
+`examples/config.yaml` lists every setting. Settings apply in this order, each overriding the previous
+one: built-in defaults, profile, configuration file, command line (`--set section.key=value`).
 
-```sh
-spot run -c config.yaml -p relaxed -x asm20 --anchors SYN,INV,TRANS --set validation.min_frac=0.3
-```
+| Profile | Anchors |
+|---|---|
+| `default` | syntenic blocks and inversions (SYN, INV) |
+| `relaxed` | also translocations and duplications within homologous chromosomes |
 
-Options of external tools use the tools' own names (`minimap2: {x: asm10}`, `blastn: {evalue: 1e-10}`,
-`syri: {invgaplen: 1000}`). Anchor types are SyRI classes: `SYN`, `INV`, `TRANS`, `INVTR`, `DUP`, `INVDP`.
+## Input
 
-| profile | anchors | flank validation |
-|---|---|---|
-| `default` | SYN, INV | aligned fraction and minimum length |
-| `relaxed` | all six, homologous chromosome only | as default |
-
-### Input
-
-- `orthofinder.root`: a folder with one or more OrthoFinder results. Each first-level subfolder is a run;
-  the latest `Results_*` inside it is used. `runs` restricts and labels them.
-- Sequence coordinates come from the FASTA headers (`chr:start-end`, see `header_regex`) or from a table
-  given in `coords` (columns `id chr start end`). `lift` converts them through AGP files or split tables
-  when they refer to another assembly. Every sequence is checked against the genome before it is used.
-- `syri_out`: an existing `syri.out` for the same two genomes. Without it SPOT runs
-  `minimap2 -c --eqx` and `syri` and keeps the result in `outdir/genome` for later runs.
-
-### Method
-
-1. **Location.** Each sequence is placed on its genome from the FASTA header or a coordinate table, lifted
-   through AGP/split tables when needed, and checked against the genome on both strands (exact, or at least
-   `min_identity`, default 0.99). Sequences on scaffolds missing from the genome are `off_assembly`.
-2. **Homology.** Chromosome pairs joined by SyRI SYN alignments; a pair is kept when it carries at least
-   `anchors.min_syn_frac` (0.1) of the SYN of the best pair of either chromosome, so fusions and fissions
-   give N:M pairs (`homology.tsv`). `anchors.homology` sets the pairs by hand.
-3. **Positional test.** The nearest SyRI alignments of the chosen types (`anchors.types`, SYN and INV by
-   default) on both sides of a sequence are projected onto the homologous chromosome. The window is widened
-   by `max(tol, tol_frac * distance to the farthest anchor)` and searched for members of the same orthogroup.
-   An empty window is `empty_locus_aligned` when at least `min_aligned_frac` of it is aligned by SyRI (the
-   locus exists and holds no sequence) and `empty_locus_gap` otherwise (not evaluable).
-4. **Flank validation.** Each candidate pair is aligned with BLASTN with `validation.window` bp of flank. A
-   flank only counts where it joins the matching flank of the other locus (left to left on the plus strand,
-   or left to right on the minus strand), and with `reciprocal` both loci must pass.
-
-A shared orthogroup is a `syntenic_ortholog` when at least one pair is confirmed, `evaluable_not_syntenic`
-when some member could be tested but none was confirmed, and `not_evaluable` otherwise.
-
-### Threads
-
-`threads: auto` (the default) uses the performance cores of the computer (on Apple Silicon the efficiency
-cores are left out). BLASTN runs as one single-threaded search per worker over a shared database of all
-flanked loci, each restricted to the candidates of its own loci; Gepard draws all dotplots of a worker in a
-single Java process, which is about 15 times faster than one JVM per dotplot. Results are written with one
-thread per OrthoFinder run, which helps on network drives.
-
-Each stage keeps a checkpoint in `outdir/.spot/`, keyed by a hash of its inputs and settings, so a repeated
-or interrupted run only redoes what changed (`resume: false` turns this off). Input digests are cached in
-`~/.cache/spot` (`SPOT_CACHE`).
-
-### Output
-
-```
-outdir/
-  spot.log  run.yaml  versions.tsv  homology.tsv
-  venn_panel.{pdf,png,svg}  synteny.{pdf,png}
-  genome/dotplot.{pdf,png}            (and minimap2/SyRI files when SPOT aligned the genomes)
-  <run>/
-    orthogroups.tsv  pairs.tsv  sequences.tsv  summary.txt  venn.{pdf,png,svg}
-    syntenic_ortholog/<OG>/           <OG>.fa  <OG>.pairs.fa  <OG>_tree.txt  dotplots/*.png
-    evaluable_not_syntenic/<OG>/
-    not_evaluable/<OG>/
-    <SP>_only/<OG>/
-    unassigned/<SP>.fa
-```
-
-`sequences.tsv` has one row per sequence with its location and identity to the genome, test class, anchors,
-the aligned fraction of the projected window and the colinear flank bases in both directions;
-`pairs.tsv` lists the confirmed pairs and the direction in which they were found.
+- **OrthoFinder results**, one run per subfolder (`orthofinder -d` for nucleotide sequences). The latest
+  `Results_*` of each run is used.
+- **Coordinates** of each sequence, read from its FASTA header (`chr1:2261774-2261923`, detected
+  automatically) or from a table (`id chr start end`).
+- **Two genome FASTA files**, the assemblies the coordinates refer to (or are lifted to).
+- Optional: a `syri.out` of the two genomes, and centromere BED files for the synteny figure.
 
 ## Development
 
 ```sh
-pip install -e ".[test]"
-pytest                 # tests (BLAST tests are skipped when blastn is not on PATH)
-ruff check src tests   # lint
-mypy src               # strict typing
+pip install -e ".[test,gui]"
+pytest
+ruff check src tests
+mypy src
 ```
 
-Your own data never goes into the repository: keep it outside `code/` (for example in `../DATA`) and point the
-configuration at it.
+## Citation
+
+If you use SPOT, please cite this repository and the tools it relies on (`CITATIONS.bib`).
+
+## References
+
+Camacho, C., Coulouris, G., Avagyan, V., Ma, N., Papadopoulos, J., Bealer, K., & Madden, T. L. (2009).
+BLAST+: Architecture and applications. *BMC Bioinformatics, 10*, 421.
+https://doi.org/10.1186/1471-2105-10-421
+
+Emms, D. M., & Kelly, S. (2019). OrthoFinder: Phylogenetic orthology inference for comparative genomics.
+*Genome Biology, 20*, 238. https://doi.org/10.1186/s13059-019-1832-y
+
+Goel, M., Sun, H., Jiao, W.-B., & Schneeberger, K. (2019). SyRI: Finding genomic rearrangements and local
+sequence differences from whole-genome assemblies. *Genome Biology, 20*, 277.
+https://doi.org/10.1186/s13059-019-1911-0
+
+Grüning, B., Dale, R., Sjödin, A., Chapman, B. A., Rowe, J., Tomkins-Tinch, C. H., Valieris, R., Köster, J.,
+& The Bioconda Team. (2018). Bioconda: Sustainable and comprehensive software distribution for the life
+sciences. *Nature Methods, 15*(7), 475–476. https://doi.org/10.1038/s41592-018-0046-7
+
+Harris, C. R., Millman, K. J., van der Walt, S. J., Gommers, R., Virtanen, P., Cournapeau, D., Wieser, E.,
+Taylor, J., Berg, S., Smith, N. J., Kern, R., Picus, M., Hoyer, S., van Kerkwijk, M. H., Brett, M., Haldane,
+A., del Río, J. F., Wiebe, M., Peterson, P., … Oliphant, T. E. (2020). Array programming with NumPy.
+*Nature, 585*(7825), 357–362. https://doi.org/10.1038/s41586-020-2649-2
+
+Hunter, J. D. (2007). Matplotlib: A 2D graphics environment. *Computing in Science & Engineering, 9*(3),
+90–95. https://doi.org/10.1109/MCSE.2007.55
+
+Krumsiek, J., Arnold, R., & Rattei, T. (2007). Gepard: A rapid and sensitive tool for creating dotplots on
+genome scale. *Bioinformatics, 23*(8), 1026–1028. https://doi.org/10.1093/bioinformatics/btm039
+
+Li, H. (2018). Minimap2: Pairwise alignment for nucleotide sequences. *Bioinformatics, 34*(18), 3094–3100.
+https://doi.org/10.1093/bioinformatics/bty191
+
+Li, H. (2021). New strategies to improve minimap2 alignment accuracy. *Bioinformatics, 37*(23), 4572–4574.
+https://doi.org/10.1093/bioinformatics/btab705
+
+Pydantic Services Inc. (2024). *Pydantic* [Computer software]. https://docs.pydantic.dev
+
+Shirley, M. D., Ma, Z., Pedersen, B. S., & Wheelan, S. J. (2015). *Efficient "pythonic" access to FASTA files
+using pyfaidx* (PeerJ PrePrints 3:e970v1). https://doi.org/10.7287/peerj.preprints.970v1
+
+The Qt Company. (2024). *Qt for Python (PySide6)* [Computer software]. https://doc.qt.io/qtforpython-6/
+
+Van Rossum, G., & Drake, F. L. (2009). *Python 3 reference manual*. CreateSpace.

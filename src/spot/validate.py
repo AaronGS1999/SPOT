@@ -169,19 +169,6 @@ def judge(hsps: list[Hsp], tested: Region, candidate: Region, settings: Validati
     return FlankCheck(ok and back_ok, left, right, bl, br, inverted)
 
 
-def parse_hsps(text: str, min_identity: float, min_length: int) -> list[Hsp]:
-    hsps = []
-    for line in text.splitlines():
-        fields = line.split()
-        if len(fields) < 6:
-            continue
-        qs, qe, ss, se = (int(x) for x in fields[2:6])
-        h = Hsp(float(fields[0]), int(fields[1]), qs, qe, ss, se)
-        if h.pident >= min_identity and h.length >= min_length:
-            hsps.append(h)
-    return hsps
-
-
 class Validator:
     """Runs BLASTN for all candidate pairs at once.
 

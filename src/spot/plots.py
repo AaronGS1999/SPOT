@@ -180,7 +180,7 @@ def _venn(
     ax.text(0, r0 + 0.78, style.label, ha="center", va="bottom", fontsize=12, fontweight="bold", color=INK)
     handles = [
         Patch(fc=syn_fill, ec="none", label="Syntenic orthologs"),
-        Patch(fc=non_fill, ec="none", label="Non-syntenic homologs"),
+        Patch(fc=non_fill, ec="none", label="Other shared orthogroups"),
     ]
     ax.legend(
         handles=handles,

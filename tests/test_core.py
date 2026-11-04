@@ -6,7 +6,7 @@ from spot.anchors import AnchorIndex
 from spot.cache import Checkpoints, digest, key_of
 from spot.config import Anchors
 from spot.locate import Genome, _place, identity
-from spot.positional import GeneIndex, window_tolerance
+from spot.positional import EVALUABLE, GeneIndex, window_tolerance
 from spot.positional import test as positional_test
 from spot.syri import AlignedIndex, Alignment, homologous_pairs
 
@@ -42,7 +42,7 @@ def test_empty_locus_in_unaligned_gap() -> None:
     settings = Anchors(tol=1000, tol_frac=0.0)
     t = positional_test(loc, set(), anchors, others, settings, AlignedIndex(alignments, "query"))
     assert t.klass == "empty_locus_gap" and t.window_aligned is not None and t.window_aligned < 0.5
-    assert not t.evaluable
+    assert t.klass not in EVALUABLE
 
 
 def test_window_tolerance() -> None:

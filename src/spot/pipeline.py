@@ -97,12 +97,14 @@ def analyse(config: Config, checkpoints: Checkpoints | None = None, progress: Pr
     }
     aligned = {ref: AlignedIndex(alignments, "reference"), qry: AlignedIndex(alignments, "query")}
     log.info("anchors (%s): %d alignments", ", ".join(kinds), len(anchors[ref]))
-    genes = {sp: GeneIndex(loc for loc in locations.values() if loc.species == sp) for sp in (ref, qry)}
-
     tests: dict[str, dict[str, Test]] = {}
     jobs: list[tuple[Location, Location]] = []
     progress("test", 0, len(runs))
     for n_run, run in enumerate(runs, start=1):
+        # each run is tested only against its own sequences, so its result does not depend on the other runs
+        genes = {
+            sp: GeneIndex(locations[g.id] for g in run.genes.values() if g.species == sp) for sp in (ref, qry)
+        }
         tests[run.name] = {}
         for g in run.genes.values():
             same = set(run.orthogroups[g.orthogroup].members[other[g.species]]) if g.assigned else set()

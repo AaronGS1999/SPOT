@@ -113,7 +113,6 @@ class MainWindow(QMainWindow):
         self.resize(1200, 860)
         self.new()
 
-    # ---------------------------------------------------------------- project file
     def _menus(self) -> None:
         menu = self.menuBar().addMenu("&File")
         bar = self.addToolBar("File")
@@ -259,7 +258,6 @@ class MainWindow(QMainWindow):
         box.setInformativeText("\n".join(lines))
         box.exec()
 
-    # ---------------------------------------------------------------- run
     def _snapshot(self) -> Path | None:
         """Write the configuration the engine will run (absolute paths) into the output folder."""
         data = self.data()

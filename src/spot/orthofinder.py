@@ -71,9 +71,6 @@ class OrthoFinderRun:
     def sequences(self, og: str) -> Path:
         return self.path / "Orthogroup_Sequences" / f"{og}.fa"
 
-    def msa(self, og: str) -> Path:
-        return self.path / "MultipleSequenceAlignments" / f"{og}.fa"
-
     def tree(self, og: str, resolved: bool = False) -> Path | None:
         if og not in (self.resolved_trees if resolved else self.trees):
             return None

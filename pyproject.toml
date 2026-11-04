@@ -7,6 +7,8 @@ name = "spot"
 dynamic = ["version"]
 description = "Synteny-based Positional Orthology Test for OrthoFinder orthogroups"
 readme = "README.md"
+license = "MIT"
+authors = [{ name = "Aaron Gálvez Salido" }]
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.6",

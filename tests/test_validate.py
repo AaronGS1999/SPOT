@@ -1,6 +1,6 @@
 from spot.config import Validation
 from spot.tools import as_args
-from spot.validate import Hsp, Region, colinear, judge, parse_hsps, required
+from spot.validate import Hsp, Region, colinear, judge, required
 
 # two loci with 1000 bp flanks and a 100 bp core: [1, 1000] left, [1001, 1100] core, [1101, 2100] right
 A = Region("a", "chr1", 1, 2100, "A" * 2100, 1000, 100)
@@ -65,9 +65,7 @@ def test_reciprocal_needs_both_loci() -> None:
     assert not check.ok and check.back_left == 901
 
 
-def test_parse_hsps_filters() -> None:
-    text = "90.0\t300\t1\t300\t5\t304\n70.0\t500\t1\t500\t1\t500\n95.0\t100\t1\t100\t1\t100\n"
-    assert parse_hsps(text, 80, 200) == [Hsp(90.0, 300, 1, 300, 5, 304)]
+def test_swapped_hsp() -> None:
     assert Hsp(90, 300, 1, 300, 400, 101).swapped() == Hsp(90, 300, 101, 400, 300, 1)
 
 
